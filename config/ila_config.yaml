@@ -1,0 +1,41 @@
+# ILA Configuration
+ila:
+  home: ~/.ila
+  auto_approve: false
+  max_develop_retries: 3
+  health_check_retries: 3
+  health_check_interval: 5
+
+sandbox:
+  default_level: tempdir
+  framework: codex
+  workspace_root: /tmp
+  codex_model: glm-5.2
+  codex_sandbox_mode: bypass
+
+adapters:
+  hermes:
+    enabled: true
+    hermes_home: ~/.hermes
+    staging_profile: ila-test
+  openclaw:
+    enabled: false
+    openclaw_home: ~/.openclaw
+  custom:
+    enabled: false
+
+test:
+  default_timeout: 60
+  performance_threshold: 1.2
+  security_scan: true
+
+report:
+  output_dir: ~/.ila/reports
+  format: [json, markdown, html]
+
+self_evolve:
+  enabled: true
+  require_security_review: true
+  protected_files:
+    - src/ila/core/roller.py
+    - src/ila/core/registry.py

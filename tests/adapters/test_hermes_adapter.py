@@ -268,19 +268,23 @@ class TestInvoke:
 
     @patch("subprocess.run")
     def test_invoke_object(self, mock_run, adapter, sample_skill):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="OK\n", stderr=""
-        )
-        result = adapter.invoke_object(sample_skill, {"prompt": "hello"})
-        assert result["output"] == "OK"
+        # invoke_object 现在用文件检查，不再调用 subprocess
+        # sample_skill 的路径已有 SKILL.md
+        result = adapter.invoke_object(sample_skill, {"check_file": "SKILL.md"})
         assert result["exit_code"] == 0
 
     @patch("subprocess.run")
     def test_invoke_staging(self, mock_run, adapter):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="staging result\n", stderr=""
+        # invoke_staging 现在用文件检查，不再调用 subprocess
+        # 创建 staging 文件
+        staging_path = os.path.join(
+            adapter.hermes_home, "profiles", adapter.staging_profile, "skills", "test-skill"
         )
+        os.makedirs(staging_path, exist_ok=True)
+        with open(os.path.join(staging_path, "SKILL.md"), "w") as f:
+            f.write("# Test\n")
+
         result = adapter.invoke_staging(
-            "staging-001", {"skill": "test-skill", "prompt": "test"}
+            "staging-001", {"skill": "test-skill", "check_file": "SKILL.md"}
         )
-        assert "staging result" in result["output"]
+        assert result["exit_code"] == 0

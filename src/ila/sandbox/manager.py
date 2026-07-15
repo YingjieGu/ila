@@ -126,16 +126,18 @@ class SandboxManager:
     # ---- tempdir 模式 ----
 
     def _create_tempdir_sandbox(self, obj: ManagedObject, sandbox_id: str) -> str:
-        """tempdir 模式: 复制目标对象到临时目录."""
+        """tempdir 模式: 复制目标对象到临时目录.
+
+        将对象内容直接复制到沙箱根目录 (不创建子目录)，
+        使得沙箱路径就是对象的新版本根目录。
+        """
         if not os.path.exists(obj.path):
             raise FileNotFoundError(f"目标对象路径不存在: {obj.path}")
 
         sandbox_path = os.path.join(self.workspace_root, sandbox_id)
-        os.makedirs(sandbox_path, exist_ok=True)
-
-        dest = os.path.join(sandbox_path, obj.name)
-        shutil.copytree(obj.path, dest)
-        logger.debug("tempdir 沙箱: %s -> %s", obj.path, dest)
+        # 直接将对象内容复制到沙箱根目录
+        shutil.copytree(obj.path, sandbox_path)
+        logger.debug("tempdir 沙箱: %s -> %s", obj.path, sandbox_path)
         return sandbox_path
 
     # ---- worktree 模式 ----
@@ -163,12 +165,14 @@ class SandboxManager:
                 timeout=30,
                 check=True,
             )
-            # 将对象文件复制到 worktree 中
-            dest = os.path.join(sandbox_path, obj.name)
-            if os.path.exists(dest):
-                shutil.rmtree(dest)
-            shutil.copytree(obj.path, dest)
-            logger.debug("worktree 沙箱: %s -> %s", obj.path, dest)
+            # 将对象文件复制到 worktree 根目录
+            for entry in os.scandir(obj.path):
+                dest = os.path.join(sandbox_path, entry.name)
+                if entry.is_dir():
+                    shutil.copytree(entry.path, dest)
+                else:
+                    shutil.copy2(entry.path, dest)
+            logger.debug("worktree 沙箱: %s -> %s", obj.path, sandbox_path)
             return sandbox_path
         except subprocess.CalledProcessError as e:
             logger.warning(

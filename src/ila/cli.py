@@ -191,6 +191,25 @@ def cmd_status(args, config, orchestrator):
         print(f"\n  已注册平台: {', '.join(platforms)}")
 
 
+def cmd_dashboard(args, config, orchestrator):
+    """启动可视化管控面板."""
+    try:
+        from ila.dashboard.api import create_app
+        import uvicorn
+    except ImportError:
+        print("Dashboard 依赖未安装。请运行:")
+        print("  pip install fastapi uvicorn")
+        sys.exit(1)
+
+    app = create_app(config, sandbox_manager=orchestrator.sandbox_manager)
+    print(f"\n{'═' * 60}")
+    print(f"  ILA 可视化管控面板启动中...")
+    print(f"  访问地址: http://localhost:{args.port}")
+    print(f"{'═' * 60}\n")
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+
 def cmd_test(args, config, orchestrator):
     """仅执行测试."""
     platform = args.object_id.split(":")[0]
@@ -255,6 +274,11 @@ def main():
     # status
     subparsers.add_parser("status", help="查看 ILA 状态")
 
+    # dashboard
+    p_dash = subparsers.add_parser("dashboard", help="启动可视化管控面板")
+    p_dash.add_argument("--host", default="0.0.0.0", help="监听地址")
+    p_dash.add_argument("--port", "-p", type=int, default=9527, help="端口")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -281,6 +305,7 @@ def main():
         "swap": cmd_swap,
         "rollback": cmd_rollback,
         "status": cmd_status,
+        "dashboard": cmd_dashboard,
     }
 
     handler = commands.get(args.command)

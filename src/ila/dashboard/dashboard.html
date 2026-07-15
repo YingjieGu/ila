@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ILA 敏捷迭代闭环管控面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0f1117; --surface: #1a1d28; --surface2: #222636; --border: #2d3142;
+            --text: #e0e0e0; --muted: #7a7e8c; --accent: #4a9eff; --accent2: #6c5ce7;
+            --green: #00b894; --red: #e74c3c; --yellow: #fdcb6e; --orange: #e17055;
+            --radius: 12px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg); color: var(--text); min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 16px 32px; display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header h1 { font-size: 20px; display: flex; align-items: center; gap: 12px; }
+        .header h1 .logo {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
+        .header-stats { display: flex; gap: 24px; font-size: 13px; }
+        .header-stat { display: flex; flex-direction: column; align-items: center; }
+        .header-stat .val { font-size: 20px; font-weight: 700; color: var(--accent); }
+        .header-stat .label { color: var(--muted); font-size: 11px; }
+
+        /* Layout */
+        .main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+
+        /* Section */
+        .section { margin-bottom: 32px; }
+        .section-title {
+            font-size: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+        .section-title .bar {
+            width: 4px; height: 20px; border-radius: 2px;
+            background: linear-gradient(180deg, var(--accent), var(--accent2));
+        }
+
+        /* Pipeline Flow */
+        .pipeline {
+            display: flex; align-items: center; gap: 0; overflow-x: auto;
+            background: var(--surface); border-radius: var(--radius); padding: 24px;
+            border: 1px solid var(--border);
+        }
+        .pipeline-phase {
+            flex: 1; min-width: 180px; text-align: center; position: relative;
+            padding: 20px 12px; border-radius: var(--radius);
+            transition: all 0.3s ease; cursor: default;
+        }
+        .pipeline-phase .icon { font-size: 36px; margin-bottom: 8px; }
+        .pipeline-phase .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .pipeline-phase .desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+        .pipeline-phase .status-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 10px;
+            font-size: 10px; font-weight: 600; margin-top: 8px;
+        }
+        .pipeline-arrow {
+            font-size: 24px; color: var(--border); padding: 0 4px; flex-shrink: 0;
+        }
+        .pipeline-phase.idle { background: var(--surface2); opacity: 0.5; }
+        .pipeline-phase.running {
+            background: linear-gradient(135deg, rgba(74,158,255,0.15), rgba(108,92,231,0.15));
+            border: 1px solid var(--accent); animation: pulse 2s infinite;
+        }
+        .pipeline-phase.done { background: rgba(0,184,148,0.1); border: 1px solid var(--green); }
+        .pipeline-phase.failed { background: rgba(231,76,60,0.1); border: 1px solid var(--red); }
+        .pipeline-phase.skipped { background: rgba(122,126,140,0.1); border: 1px solid var(--muted); }
+        .status-badge.pending { background: var(--surface2); color: var(--muted); }
+        .status-badge.running { background: var(--accent); color: #fff; }
+        .status-badge.done { background: var(--green); color: #fff; }
+        .status-badge.failed { background: var(--red); color: #fff; }
+        .status-badge.skipped { background: var(--muted); color: #fff; }
+        @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(74,158,255,0.4); } 50% { box-shadow: 0 0 20px 4px rgba(74,158,255,0.2); } }
+
+        /* Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+        /* Card */
+        .card {
+            background: var(--surface); border-radius: var(--radius); padding: 20px;
+            border: 1px solid var(--border);
+        }
+        .card-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+        td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        tr:hover { background: var(--surface2); cursor: pointer; }
+
+        /* Badges */
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .badge-pass { background: rgba(0,184,148,0.2); color: var(--green); }
+        .badge-fail { background: rgba(231,76,60,0.2); color: var(--red); }
+        .badge-degraded { background: rgba(253,203,110,0.2); color: var(--yellow); }
+        .badge-pending { background: rgba(122,126,140,0.2); color: var(--muted); }
+        .badge-live { background: rgba(0,184,148,0.2); color: var(--green); }
+        .badge-developing { background: rgba(74,158,255,0.2); color: var(--accent); }
+        .badge-rolled_back { background: rgba(231,76,60,0.2); color: var(--red); }
+        .badge-testing { background: rgba(253,203,110,0.2); color: var(--yellow); }
+        .badge-verified { background: rgba(108,92,231,0.2); color: var(--accent2); }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+            font-size: 13px; font-weight: 600; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: #3a8eef; }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            display: none; align-items: center; justify-content: center; z-index: 200;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--surface); border-radius: var(--radius); padding: 24px;
+            width: 90%; max-width: 560px; border: 1px solid var(--border);
+        }
+        .modal h2 { font-size: 18px; margin-bottom: 16px; }
+        .modal label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+        .modal input, .modal textarea, .modal select {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+            font-size: 14px; margin-bottom: 12px; font-family: inherit;
+        }
+        .modal textarea { min-height: 80px; resize: vertical; }
+        .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px; }
+
+        /* Log */
+        .log-viewer {
+            background: #0a0c12; border-radius: 8px; padding: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px;
+            max-height: 300px; overflow-y: auto; line-height: 1.6;
+            border: 1px solid var(--border);
+        }
+        .log-line { padding: 1px 0; }
+        .log-line.info { color: var(--text); }
+        .log-line.warn { color: var(--yellow); }
+        .log-line.error { color: var(--red); }
+        .log-line.success { color: var(--green); }
+        .log-line .ts { color: var(--muted); margin-right: 8px; }
+
+        /* AB Chart */
+        .ab-comparison { display: flex; gap: 20px; align-items: center; }
+        .ab-column { flex: 1; }
+        .ab-column h4 { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; }
+        .ab-bar-chart { display: flex; flex-direction: column; gap: 6px; }
+        .ab-bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+        .ab-bar-label { width: 100px; text-align: right; color: var(--muted); }
+        .ab-bar { height: 20px; border-radius: 4px; transition: width 0.5s; }
+        .ab-bar.a1 { background: var(--accent); }
+        .ab-bar.a2 { background: var(--green); }
+        .ab-bar-val { font-size: 11px; color: var(--muted); }
+
+        /* Tooltip */
+        .obj-path { color: var(--muted); font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>
+        <div class="logo">🔄</div>
+        ILA 敏捷迭代闭环管控面板
+    </h1>
+    <div class="header-stats" id="header-stats">
+        <div class="header-stat"><span class="val" id="stat-objects">-</span><span class="label">纳管对象</span></div>
+        <div class="header-stat"><span class="val" id="stat-versions">-</span><span class="label">版本记录</span></div>
+        <div class="header-stat"><span class="val" id="stat-live">-</span><span class="label">上线版本</span></div>
+        <div class="header-stat"><span class="val" id="stat-platforms">-</span><span class="label">平台</span></div>
+    </div>
+</div>
+
+<div class="main">
+
+    <!-- Pipeline Flow -->
+    <div class="section">
+        <div class="section-title"><div class="bar"></div>迭代闭环流程</div>
+        <div class="pipeline" id="pipeline"></div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="section">
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+            <button class="btn btn-primary" onclick="openRunModal()">🚀 发起迭代</button>
+            <button class="btn btn-primary" onclick="refreshAll()">🔄 刷新</button>
+            <button class="btn btn-danger" onclick="openRollbackModal()">🔙 回滚</button>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <!-- Objects Table -->
+        <div class="section">
+            <div class="section-title"><div class="bar"></div>纳管对象</div>
+            <div class="card">
+                <table>
+                    <thead><tr><th>对象ID</th><th>类型</th><th>版本</th><th>操作</th></tr></thead>
+                    <tbody id="objects-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Version History -->
+        <div class="section">
+            <div class="section-title"><div class="bar"></div>版本历史</div>
+            <div class="card">
+                <table>
+                    <thead><tr><th>对象</th><th>版本</th><th>状态</th><th>时间</th></tr></thead>
+                    <tbody id="versions-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- A/B Test Results & Log -->
+    <div class="grid-2">
+        <div class="section">
+            <div class="section-title"><div class="bar"></div>最新 A/B 测试结果</div>
+            <div class="card" id="ab-results">
+                <p style="color: var(--muted); text-align: center; padding: 20px;">暂无测试结果</p>
+            </div>
+        </div>
+        <div class="section">
+            <div class="section-title"><div class="bar"></div>实时日志</div>
+            <div class="log-viewer" id="log-viewer">
+                <div class="log-line info"><span class="ts">[--:--:--]</span>等待操作...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports -->
+    <div class="section">
+        <div class="section-title"><div class="bar"></div>迭代报告</div>
+        <div class="card">
+            <table>
+                <thead><tr><th>任务ID</th><th>目标对象</th><th>判定</th><th>时间</th><th>操作</th></tr></thead>
+                <tbody id="reports-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Run Modal -->
+<div class="modal-overlay" id="run-modal">
+    <div class="modal">
+        <h2>🚀 发起迭代闭环</h2>
+        <label>目标对象</label>
+        <select id="run-object-id"></select>
+        <label>需求描述</label>
+        <textarea id="run-requirement" placeholder="描述需要修复的 bug 或需要开发的功能..."></textarea>
+        <label><input type="checkbox" id="run-auto-approve" style="width:auto;margin-right:8px;">自动批准热切换 (跳过确认直接上线)</label>
+        <div class="modal-actions">
+            <button class="btn" style="background:var(--surface2);color:var(--text);" onclick="closeModal('run-modal')">取消</button>
+            <button class="btn btn-primary" onclick="submitRun()">启动迭代</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rollback Modal -->
+<div class="modal-overlay" id="rollback-modal">
+    <div class="modal">
+        <h2>🔙 回滚到上一版本</h2>
+        <label>目标对象</label>
+        <select id="rollback-object-id"></select>
+        <div class="modal-actions">
+            <button class="btn" style="background:var(--surface2);color:var(--text);" onclick="closeModal('rollback-modal')">取消</button>
+            <button class="btn btn-danger" onclick="submitRollback()">确认回滚</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = '';
+let ws = null;
+let pipelinePhases = [];
+let currentRunState = {};
+
+// ---- WebSocket ----
+function initWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+    };
+    ws.onclose = () => setTimeout(initWS, 3000);
+}
+
+function handleMessage(msg) {
+    if (msg.type === 'phase_update') {
+        updatePipelinePhase(msg.phase, msg.status, msg.detail);
+    } else if (msg.type === 'log') {
+        addLog(msg.level, msg.message);
+    } else if (msg.type === 'run_complete') {
+        refreshAll();
+    }
+}
+
+// ---- Pipeline ----
+async function loadPipeline() {
+    const res = await fetch(`${API}/api/flow/pipeline`);
+    const data = await res.json();
+    pipelinePhases = data.phases;
+    renderPipeline();
+}
+
+function renderPipeline() {
+    const container = document.getElementById('pipeline');
+    container.innerHTML = '';
+    pipelinePhases.forEach((phase, i) => {
+        const el = document.createElement('div');
+        el.className = 'pipeline-phase idle';
+        el.id = `phase-${phase.id}`;
+        el.innerHTML = `
+            <div class="icon">${phase.icon}</div>
+            <div class="name">${phase.name}</div>
+            <div class="desc">${phase.description}</div>
+            <div class="status-badge pending" id="badge-${phase.id}">待命</div>
+        `;
+        container.appendChild(el);
+        if (i < pipelinePhases.length - 1) {
+            const arrow = document.createElement('div');
+            arrow.className = 'pipeline-arrow';
+            arrow.textContent = '→';
+            container.appendChild(arrow);
+        }
+    });
+}
+
+function updatePipelinePhase(phaseId, status, detail) {
+    const el = document.getElementById(`phase-${phaseId}`);
+    const badge = document.getElementById(`badge-${phaseId}`);
+    if (!el) return;
+
+    el.className = `pipeline-phase ${status}`;
+    const labels = { pending: '待命', running: '执行中', done: '完成', failed: '失败', skipped: '跳过' };
+    badge.className = `status-badge ${status}`;
+    badge.textContent = labels[status] || status;
+
+    if (detail) {
+        addLog(status === 'failed' ? 'error' : 'info', `[${phaseId}] ${detail}`);
+    }
+}
+
+function resetPipeline() {
+    pipelinePhases.forEach(p => updatePipelinePhase(p.id, 'pending'));
+}
+
+// ---- Data Loading ----
+async function refreshAll() {
+    await Promise.all([loadStatus(), loadObjects(), loadVersions(), loadReports()]);
+}
+
+async function loadStatus() {
+    const res = await fetch(`${API}/api/status`);
+    const data = await res.json();
+    document.getElementById('stat-objects').textContent = data.objects || 0;
+    document.getElementById('stat-versions').textContent = data.total_versions || 0;
+    document.getElementById('stat-live').textContent = data.live_versions || 0;
+    document.getElementById('stat-platforms').textContent = (data.platforms_registered || []).join(', ') || '-';
+}
+
+async function loadObjects() {
+    const res = await fetch(`${API}/api/objects`);
+    const data = await res.json();
+    const tbody = document.getElementById('objects-tbody');
+    tbody.innerHTML = '';
+    const select = document.getElementById('run-object-id');
+    const rbSelect = document.getElementById('rollback-object-id');
+    select.innerHTML = '';
+    rbSelect.innerHTML = '';
+    data.objects.forEach(obj => {
+        const tr = document.createElement('tr');
+        tr.onclick = () => showObjectDetail(obj.object_id);
+        tr.innerHTML = `
+            <td style="font-family:monospace;font-size:12px;">${obj.object_id}</td>
+            <td><span class="badge badge-pending">${obj.object_type}</span></td>
+            <td>${obj.current_version}</td>
+            <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();quickRun('${obj.object_id}')">迭代</button></td>
+        `;
+        tbody.appendChild(tr);
+        select.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
+        rbSelect.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
+    });
+}
+
+async function loadVersions() {
+    const res = await fetch(`${API}/api/versions`);
+    const data = await res.json();
+    const tbody = document.getElementById('versions-tbody');
+    tbody.innerHTML = '';
+    data.versions.slice(0, 20).forEach(v => {
+        const tr = document.createElement('tr');
+        const statusClass = `badge-${v.status || 'pending'}`;
+        const statusText = {developing:'开发中', testing:'测试中', verified:'已验证', live:'已上线', rolled_back:'已回滚', failed:'失败'}[v.status] || v.status;
+        tr.innerHTML = `
+            <td style="font-family:monospace;font-size:11px;">${v.object_id}</td>
+            <td>${v.version}</td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td style="font-size:11px;color:var(--muted);">${(v.created_at||'').slice(0,19)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function loadReports() {
+    try {
+        const res = await fetch(`${API}/api/reports`);
+        const data = await res.json();
+        const tbody = document.getElementById('reports-tbody');
+        tbody.innerHTML = '';
+        data.reports.forEach(r => {
+            const verdictClass = r.verdict === 'success' ? 'badge-pass' : r.verdict === 'fail' ? 'badge-fail' : 'badge-degraded';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-family:monospace;font-size:11px;">${r.task_id}</td>
+                <td>${r.target}</td>
+                <td><span class="badge ${verdictClass}">${r.verdict}</span></td>
+                <td style="font-size:11px;color:var(--muted);">${(r.timestamp||'').slice(0,19)}</td>
+                <td><button class="btn btn-sm" style="background:var(--surface2);color:var(--text);" onclick="viewReport('${r.task_id}')">查看</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch(e) { /* reports may not exist yet */ }
+}
+
+async function showObjectDetail(objectId) {
+    const res = await fetch(`${API}/api/objects/${objectId}`);
+    const data = await res.json();
+    if (data.versions && data.versions.length > 0) {
+        const latest = data.versions[0];
+        if (latest.test_results) {
+            renderABResults(latest.test_results);
+        }
+    }
+}
+
+function renderABResults(testResults) {
+    const container = document.getElementById('ab-results');
+    if (!testResults || !testResults.case_results || testResults.case_results.length === 0) {
+        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">暂无测试结果</p>';
+        return;
+    }
+    let html = '<table><thead><tr><th>测试项</th><th>类型</th><th>A1 (旧版)</th><th>A2 (新版)</th><th>状态</th></tr></thead><tbody>';
+    testResults.case_results.forEach(c => {
+        const a1 = c.a1_pass ? '✅' : '❌';
+        const a2 = c.a2_pass ? '✅' : '❌';
+        const cls = c.a2_pass ? 'pass' : 'fail';
+        html += `<tr><td>${c.case_id}</td><td>${c.test_type}</td><td>${a1}</td><td>${a2}</td><td class="${cls}">${a2 ? 'PASS' : 'FAIL'}</td></tr>`;
+    });
+    html += `</tbody></table><div style="margin-top:12px;font-size:13px;">
+        <span style="color:var(--muted);">判定:</span>
+        <span class="badge badge-${testResults.verdict}">${testResults.verdict}</span>
+        &nbsp;通过 ${testResults.passed_cases}/${testResults.total_cases}
+    </div>`;
+    container.innerHTML = html;
+}
+
+// ---- Actions ----
+function openRunModal() { document.getElementById('run-modal').classList.add('active'); }
+function openRollbackModal() { document.getElementById('rollback-modal').classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function quickRun(objectId) {
+    document.getElementById('run-object-id').value = objectId;
+    openRunModal();
+}
+
+async function submitRun() {
+    const objectId = document.getElementById('run-object-id').value;
+    const requirement = document.getElementById('run-requirement').value;
+    const autoApprove = document.getElementById('run-auto-approve').checked;
+    if (!requirement.trim()) { alert('请输入需求描述'); return; }
+
+    closeModal('run-modal');
+    resetPipeline();
+
+    // Simulate phase progression (in real impl, WebSocket pushes updates)
+    const phases = ['analyze', 'develop', 'test', 'verify', 'switch'];
+    for (const phase of phases) {
+        updatePipelinePhase(phase, 'running');
+        addLog('info', `正在执行: ${pipelinePhases.find(p=>p.id===phase)?.name || phase}`);
+
+        const res = await fetch(`${API}/api/run`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({object_id: objectId, requirement, auto_approve: autoApprove})
+        });
+        const data = await res.json();
+
+        if (data.status === 'started') {
+            updatePipelinePhase(phase, 'done');
+            addLog('success', `${phase} 阶段完成`);
+        } else {
+            updatePipelinePhase(phase, 'failed');
+            addLog('error', `${phase} 阶段失败: ${data.reason || ''}`);
+            break;
+        }
+        // Only call /api/run once; subsequent phases are simulated
+        if (phase === 'analyze') break;
+    }
+
+    // For real run, the backend handles all phases. Here we just trigger and wait.
+    addLog('info', '迭代闭环已在后台启动，等待完成...');
+    setTimeout(refreshAll, 5000);
+}
+
+async function submitRollback() {
+    const objectId = document.getElementById('rollback-object-id').value;
+    closeModal('rollback-modal');
+    addLog('warn', `正在回滚: ${objectId}`);
+    const res = await fetch(`${API}/api/rollback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({object_id: objectId})
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+        addLog('success', `回滚成功: ${objectId}`);
+    } else {
+        addLog('error', `回滚失败: ${data.reason || data.status}`);
+    }
+    refreshAll();
+}
+
+async function viewReport(taskId) {
+    const res = await fetch(`${API}/api/reports/${taskId}`);
+    const data = await res.json();
+    if (data.html) {
+        const w = window.open('', '_blank');
+        w.document.write(data.html);
+        w.document.close();
+    } else if (data.markdown) {
+        alert(data.markdown);
+    } else {
+        alert('报告内容不可用');
+    }
+}
+
+// ---- Log ----
+function addLog(level, message) {
+    const viewer = document.getElementById('log-viewer');
+    const now = new Date().toTimeString().slice(0, 8);
+    const line = document.createElement('div');
+    line.className = `log-line ${level}`;
+    line.innerHTML = `<span class="ts">[${now}]</span>${message}`;
+    viewer.appendChild(line);
+    viewer.scrollTop = viewer.scrollHeight;
+}
+
+// ---- Init ----
+async function init() {
+    await loadPipeline();
+    await refreshAll();
+    initWS();
+    addLog('success', 'ILA 管控面板已就绪');
+}
+
+init();
+// Auto-refresh every 15s
+setInterval(refreshAll, 15000);
+</script>
+</body>
+</html>

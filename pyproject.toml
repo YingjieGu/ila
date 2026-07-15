@@ -21,6 +21,10 @@ dev = [
     "pytest>=8.0",
     "pytest-cov",
 ]
+dashboard = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+]
 
 [project.scripts]
 ila = "ila.cli:main"

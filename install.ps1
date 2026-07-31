@@ -3,7 +3,7 @@
 
 param(
     [string]$InstallDir = "C:\ila",
-    [string]$RepoUrl = "",
+    [string]$RepoUrl = "https://github.com/YingjieGu/ila.git",
     [string]$Branch = "master",
     [int]$DashboardPort = 9527
 )
@@ -38,22 +38,14 @@ try {
 
 # 3. 克隆仓库
 Write-Host "`n[3/5] 安装 ILA..." -ForegroundColor Yellow
-if ($RepoUrl) {
-    if (Test-Path $InstallDir) {
-        Write-Host "  目录已存在，正在更新..." -ForegroundColor Gray
-        Set-Location $InstallDir
-        git pull origin $Branch
-    } else {
-        Write-Host "  克隆 $RepoUrl ..." -ForegroundColor Gray
-        git clone -b $Branch $RepoUrl $InstallDir
-        Set-Location $InstallDir
-    }
+if (Test-Path $InstallDir) {
+    Write-Host "  目录已存在，正在更新..." -ForegroundColor Gray
+    Set-Location $InstallDir
+    git pull origin $Branch
 } else {
-    # 离线安装模式：假设脚本在 ILA 目录内
-    $InstallDir = (Get-Location).Path
-    Write-Host "  离线模式，安装目录: $InstallDir" -ForegroundColor Gray
+    Write-Host "  克隆 $RepoUrl ..." -ForegroundColor Gray
+    git clone -b $Branch $RepoUrl $InstallDir
 }
-
 Set-Location $InstallDir
 pip install -e ".[dev]" 2>&1 | Out-Null
 Write-Host "  安装完成" -ForegroundColor Green

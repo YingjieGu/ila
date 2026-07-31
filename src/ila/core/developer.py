@@ -44,7 +44,7 @@ class Developer:
         self.codex_model = self.config.get("codex_model", "glm-5.2")
         self.codex_sandbox_mode = self.config.get("codex_sandbox_mode", "bypass")
         self.max_retries = self.config.get("max_retries", 3)
-        self.timeout = self.config.get("timeout", 300)
+        self.timeout = self.config.get("timeout", 600)
 
     def develop(self, obj: ManagedObject, task_spec: TaskSpec) -> dict[str, Any]:
         """在沙箱中开发新版本.
@@ -90,7 +90,9 @@ class Developer:
 
             logger.warning("开发尝试 %d 失败: %s", attempt, result.get("reason", ""))
             if attempt < self.max_retries:
-                logger.info("重试中...")
+                logger.info("重置沙箱并重试...")
+                self.sandbox_manager.reset_sandbox(sandbox_path, obj)
+                self._inject_task_spec(sandbox_path, task_spec)
 
         return {
             "status": "failed",
@@ -124,8 +126,13 @@ class Developer:
 1. 只修改任务相关的文件，不碰触其他文件
 2. 遵循现有代码风格
 3. 为新增功能编写测试
-4. 完成后运行 pytest 验证
+4. 完成后检查代码完整性（不要运行测试命令）
 5. 不要修改 .git 目录
+6. **【验证标记】修改 HTML 元素时必须加 data-verification-modified="true" 属性**:
+   - 每次修改或新增 dashboard.html 中的 HTML 板块、控件、section 时, 在对应元素上添加 `data-verification-modified="true"` 属性
+   - 例: `<div class="section" data-module="dashboard" data-verification-modified="true">`
+   - 不要删除已有的 data-verification-modified 属性
+   - 这个属性用于部署验证阶段自动高亮新修改的内容
 
 ## 当前版本
 {task_spec.current_version}
@@ -169,15 +176,15 @@ class Developer:
                 text=True,
                 timeout=self.timeout,
                 cwd=sandbox_path,
+                stdin=subprocess.DEVNULL,  # 防止 codex 等待 stdin 输入
             )
 
             if result.returncode == 0:
                 output = result.stdout
                 # 检查是否有明显的错误标记
                 if "error" in output.lower() and "succeeded" not in output.lower():
-                    # 有 error 但没有 succeeded，可能部分失败
                     logger.warning("Codex 输出包含 error，检查结果...")
-                return {"status": "success", "output": output[-2000:]}  # 截取最后2000字符
+                return {"status": "success", "output": output[-2000:]}
             else:
                 return {
                     "status": "error",
@@ -213,25 +220,22 @@ class Developer:
     def _build_prompt(self, task_spec: TaskSpec) -> str:
         """构建开发框架的提示词."""
         changes = "\n".join(
-            f"  {i+1}. [{c.change_type}] {c.description}"
+            f"  {i+1}. {c.description}"
             for i, c in enumerate(task_spec.changes)
         )
-        return f"""你是 ILA (Iteration Loop Agent) 的开发执行器。
+        files = ", ".join(task_spec.changes[0].files) if task_spec.changes else ""
+        return f"""请修改当前目录中的文件以完成以下需求。请高效操作，不要运行测试。
 
-## 任务
-{task_spec.requirement}
+需求: {task_spec.requirement}
 
-## 具体变更
-{changes}
+涉及文件: {files}
 
-## 约束
-1. 只修改相关文件，不碰触其他文件
-2. 遵循现有代码风格
-3. 为新增功能编写测试
-4. 完成后运行 pytest 验证 (如果有的话)
-
-## 重要
-请直接修改文件，不要只描述要做什么。完成后确认变更已完成。"""
+要求:
+1. 直接用工具修改文件，不要只描述计划
+2. 只修改必要的文件
+3. 遵循现有代码风格
+4. 不要运行 pytest 或其他测试命令
+5. **【验证标记】修改 dashboard.html 中的 HTML 元素时，必须给被修改的元素添加 data-verification-modified="true" 属性，用于部署验证阶段自动高亮新修改的内容。例: <div class="section" data-module="dashboard" data-verification-modified="true"> 不要删除已有的该属性。"""
 
     def _collect_changed_files(self, sandbox_path: str, obj: ManagedObject) -> list[str]:
         """收集沙箱中的变更文件列表."""

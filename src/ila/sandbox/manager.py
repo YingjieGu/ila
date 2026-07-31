@@ -79,6 +79,36 @@ class SandboxManager:
         logger.info("沙箱创建完成: %s", sandbox_path)
         return sandbox_path
 
+    def reset_sandbox(self, sandbox_path: str, obj: ManagedObject) -> bool:
+        """重置沙箱到原始状态 (清理旧文件，重新复制)."""
+        if not os.path.exists(sandbox_path):
+            logger.warning("沙箱路径不存在，无法重置: %s", sandbox_path)
+            return False
+
+        meta = self.get_sandbox_info(sandbox_path)
+        level = meta.get("level", "tempdir")
+
+        try:
+            # 清理沙箱内所有文件
+            for entry in os.scandir(sandbox_path):
+                if entry.name == self.META_FILENAME:
+                    continue  # 保留元信息文件
+                if entry.is_dir():
+                    shutil.rmtree(entry.path)
+                else:
+                    os.unlink(entry.path)
+
+            # 重新复制对象文件
+            shutil.copytree(obj.path, sandbox_path, dirs_exist_ok=True)
+
+            # 重新写入元信息
+            self._write_meta(sandbox_path, meta)
+            logger.info("沙箱已重置: %s", sandbox_path)
+            return True
+        except Exception as e:
+            logger.error("重置沙箱失败: %s - %s", sandbox_path, e)
+            return False
+
     def cleanup(self, sandbox_path: str) -> bool:
         """清理沙箱工作区.
 
@@ -137,8 +167,33 @@ class SandboxManager:
         sandbox_path = os.path.join(self.workspace_root, sandbox_id)
         # 直接将对象内容复制到沙箱根目录
         shutil.copytree(obj.path, sandbox_path)
+        # 剥离旧版本的验证标记，确保只有新迭代的修改才会被高亮
+        self._strip_verification_markers(sandbox_path)
         logger.debug("tempdir 沙箱: %s -> %s", obj.path, sandbox_path)
         return sandbox_path
+
+    @staticmethod
+    def _strip_verification_markers(sandbox_path: str) -> None:
+        """剥离沙箱中所有 HTML 文件的旧 data-verification-modified 属性.
+
+        确保只有当前迭代 Codex 新增的修改才会被验证高亮。
+        """
+        import re
+        marker_re = re.compile(r'\s*data-verification-modified\s*=\s*"true"', re.IGNORECASE)
+        for root, _dirs, files in os.walk(sandbox_path):
+            for f in files:
+                if f.endswith('.html'):
+                    filepath = os.path.join(root, f)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as fh:
+                            content = fh.read()
+                        new_content = marker_re.sub('', content)
+                        if new_content != content:
+                            with open(filepath, 'w', encoding='utf-8') as fh:
+                                fh.write(new_content)
+                            logger.debug("已剥离旧验证标记: %s", filepath)
+                    except Exception:
+                        pass  # 非关键路径，静默失败
 
     # ---- worktree 模式 ----
 

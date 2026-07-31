@@ -84,16 +84,19 @@ class Analyzer:
         # 推断涉及的文件
         files = self.adapter.get_object_files(obj)
         relevant_files = [f for f in files if not f.endswith((".gitignore",))]
-        # 优先选择代码文件
+        # 优先选择代码文件，排除测试和辅助文件
         code_files = [f for f in relevant_files
-                      if f.endswith((".py", ".js", ".ts", ".sh", ".md"))]
+                      if f.endswith((".py", ".js", ".ts", ".sh", ".html"))
+                      and "/tests/" not in f
+                      and "__pycache__" not in f
+                      and "AGENTS.md" not in f]
         if not code_files:
             code_files = relevant_files[:3] if relevant_files else []
 
         return [ChangeItem(
             change_type=change_type,
-            description=requirement[:200],  # 截取前200字符
-            files=[f.split("/")[-1] for f in code_files],
+            description=requirement[:200],
+            files=[f.split("/")[-1] for f in code_files[:5]],  # 最多5个文件
             estimated_complexity=self._estimate_complexity(requirement),
         )]
 

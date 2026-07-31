@@ -193,7 +193,7 @@ class ABTester:
                                      test_requirements: dict) -> list[dict[str, Any]]:
         """根据测试需求生成默认测试用例.
 
-        使用轻量级文件检查模式 (check_file + expect_contains)，
+        自动检测技能文件结构，为带 HTML 页面的技能添加页面完整性测试。
         避免调用 hermes chat (太慢)。
 
         Args:
@@ -204,8 +204,9 @@ class ABTester:
             测试用例列表
         """
         cases: list[dict[str, Any]] = []
+        import os
 
-        # 功能测试 — 检查 SKILL.md 存在且格式正确
+        # 功能测试 - 检查 SKILL.md 存在且格式正确
         cases.append({
             "id": "func-skill-md",
             "type": "functional",
@@ -213,17 +214,52 @@ class ABTester:
             "expected": "",
         })
 
-        # 回归测试 — 检查 handler.py 存在
-        cases.append({
-            "id": "reg-handler-exists",
-            "type": "regression",
-            "input": {"check_file": "handler.py"},
-            "expected": "",
-        })
+        # 检测实际文件结构，针对性生成测试
+        skill_path = obj.path
+        if os.path.isdir(skill_path):
+            # 回归测试 - 检查主要代码文件存在 (自动检测而非硬编码 handler.py)
+            for code_file in ("handler.py", "main.py", "__init__.py"):
+                if os.path.isfile(os.path.join(skill_path, code_file)):
+                    cases.append({
+                        "id": f"reg-{code_file.replace('.', '-')}-exists",
+                        "type": "regression",
+                        "input": {"check_file": code_file},
+                        "expected": "",
+                    })
+                    break
+
+            # 如果技能包含 HTML 页面，添加页面完整性测试
+            html_files = [
+                f for f in os.listdir(skill_path)
+                if f.endswith(".html")
+            ]
+            for html_file in html_files:
+                cases.append({
+                    "id": f"func-html-{html_file.replace('.', '-')}",
+                    "type": "functional",
+                    "input": {
+                        "check_file": html_file,
+                        "expect_contains": "<html",
+                    },
+                    "expected": "<html",
+                })
+
+            # 如果技能包含 Python 主文件，添加语法检查测试
+            py_main = None
+            for py_file in ("minesweeper.py", "handler.py", "main.py"):
+                if os.path.isfile(os.path.join(skill_path, py_file)):
+                    py_main = py_file
+                    break
+            if py_main:
+                cases.append({
+                    "id": f"reg-py-syntax-{py_main.replace('.', '-')}",
+                    "type": "regression",
+                    "input": {"check_file": py_main},
+                    "expected": "",
+                })
 
         # 如果需求中提到特定内容，添加内容检查
         for desc in test_requirements.get("functional", []):
-            # 如果描述中提到特定的期望内容，生成检查用例
             if "Hello" in desc or "hello" in desc or "OK" in desc:
                 cases.append({
                     "id": f"func-content-{len(cases)}",

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS objects (
 CREATE TABLE IF NOT EXISTS versions (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     object_id           TEXT NOT NULL,
+    iter_version        INTEGER NOT NULL DEFAULT 1,
     version             TEXT NOT NULL,
     sandbox_path        TEXT,
     status              TEXT DEFAULT 'developing',
@@ -90,6 +91,18 @@ class VersionRegistry:
         """初始化数据库 schema."""
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """迁移已有数据库 schema，添加缺失的列."""
+        with self._connect() as conn:
+            # v1.4.0+: 添加 iter_version 列
+            try:
+                conn.execute(
+                    "ALTER TABLE versions ADD COLUMN iter_version INTEGER NOT NULL DEFAULT 1"
+                )
+            except sqlite3.OperationalError:
+                pass  # 列已存在
 
     def _connect(self) -> sqlite3.Connection:
         """创建数据库连接."""
@@ -145,7 +158,11 @@ class VersionRegistry:
                      object_type=excluded.object_type,
                      object_name=excluded.object_name,
                      object_path=excluded.object_path,
-                     current_version=excluded.current_version,
+                     current_version=CASE
+                       WHEN objects.current_version = 'unknown' OR objects.current_version IS NULL
+                         THEN excluded.current_version
+                       ELSE objects.current_version
+                     END,
                      metadata=excluded.metadata""",
                 (
                     obj.object_id,
@@ -201,18 +218,124 @@ class VersionRegistry:
 
     # ---- Version ----
 
+    @staticmethod
+    def _parse_semver_parts(version: str) -> tuple:
+        """Parse a semantic version string into comparable tuple.
+
+        Examples:
+            "1.4.10"  -> (1, 4, 10)
+            "v1.4.3"  -> (1, 4, 3)
+            "1.0"     -> (1, 0, 0)
+            "12"      -> (12,)
+
+        Returns an empty tuple for unparseable versions.
+        """
+        v = str(version).lstrip("v")
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except (ValueError, TypeError):
+            return ()
+
+    @staticmethod
+    def _bump_patch(version: str) -> str:
+        """Bump the patch component of a semantic version string.
+
+        Examples:
+            "1.4.0" -> "1.4.1"
+            "v1.4.3" -> "1.4.4"
+            "1.0"   -> "1.0.1"
+        """
+        v = version.lstrip("v")
+        parts = v.split(".")
+        if len(parts) >= 3:
+            try:
+                parts[-1] = str(int(parts[-1]) + 1)
+            except ValueError:
+                parts.append("1")
+        else:
+            parts.append("1")
+        return ".".join(parts)
+
+    def _compute_iter_version(self, conn, object_id: str) -> str:
+        """Compute the next iteration version as a semantic version string.
+
+        Uses the object's current_version as the base and bumps the patch.
+        Handles legacy INTEGER iter_version values gracefully.
+
+        IMPORTANT: Uses Python-side semver comparison instead of SQLite MAX
+        because SQLite's MAX on TEXT strings uses lexicographic ordering,
+        which would order "1.4.9" after "1.4.10" incorrectly.
+        """
+        # Get object's current_version
+        obj_row = conn.execute(
+            "SELECT current_version FROM objects WHERE object_id = ?",
+            (object_id,),
+        ).fetchone()
+        base_version = obj_row["current_version"] if obj_row else "0.1.0"
+        if base_version == "unknown":
+            base_version = "0.1.0"
+
+        # Fetch all existing iter_version values for proper semver comparison
+        rows = conn.execute(
+            "SELECT iter_version FROM versions WHERE object_id = ? AND iter_version IS NOT NULL",
+            (object_id,),
+        ).fetchall()
+
+        max_iter_str = None
+
+        if rows:
+            # Find the true maximum using semantic version comparison
+            best_parts = ()
+            for row in rows:
+                raw = str(row["iter_version"])
+                # Skip legacy integer-only values (no dots) when we have semvers
+                if "." not in raw and any("." in str(r["iter_version"]) for r in rows):
+                    continue
+                parts = self._parse_semver_parts(raw)
+                if not parts and raw.isdigit():
+                    # Legacy integer: treat as patch number from base
+                    b = base_version.lstrip("v").split(".")
+                    if len(b) >= 3:
+                        parts = (int(b[0]), int(b[1]), int(raw))
+                    else:
+                        parts = (0, 1, int(raw))
+                if parts > best_parts:
+                    best_parts = parts
+                    max_iter_str = ".".join(str(p) for p in parts)
+
+            if max_iter_str is not None:
+                return self._bump_patch(max_iter_str)
+
+        # No existing versions or all legacy — bump from base
+        return self._bump_patch(base_version)
+
+    def get_next_version(self, object_id: str) -> str:
+        """计算对象的下一个语义版本号.
+
+        基于 current_version 递增补丁号。
+        """
+        with self._connect() as conn:
+            return self._compute_iter_version(conn, object_id)
+
     def create_version(self, object_id: str, version: str,
                        sandbox_path: str = "", task_spec: dict | None = None) -> int:
         """创建新版本记录.
+
+        自动计算迭代版本号: 基于托管对象的 current_version,
+        递增补丁号 (例如 "1.4.0" → "1.4.1" → "1.4.2").
+        兼容旧的整数计数器方式.
 
         Returns:
             版本记录 ID
         """
         with self._connect() as conn:
+            next_iter = self._compute_iter_version(conn, object_id)
+
             cursor = conn.execute(
-                """INSERT INTO versions (object_id, version, sandbox_path, task_spec, status)
-                   VALUES (?, ?, ?, ?, 'developing')""",
+                """INSERT INTO versions (iter_version, object_id, version, sandbox_path, task_spec, status)
+                   VALUES (?, ?, ?, ?, ?, 'developing')""",
                 (
+                    next_iter,
                     object_id,
                     version,
                     sandbox_path,
@@ -246,6 +369,17 @@ class VersionRegistry:
         sql = f"UPDATE versions SET {', '.join(updates)} WHERE id = ?"
         with self._connect() as conn:
             conn.execute(sql, params)
+            # 当状态变为 live 时，同步更新纳管对象的 current_version
+            if status == "live":
+                version_row = conn.execute(
+                    "SELECT object_id, version FROM versions WHERE id = ?",
+                    (version_id,),
+                ).fetchone()
+                if version_row:
+                    conn.execute(
+                        "UPDATE objects SET current_version = ? WHERE object_id = ?",
+                        (version_row["version"], version_row["object_id"]),
+                    )
 
     def get_version(self, version_id: int) -> dict[str, Any] | None:
         """获取指定版本记录."""

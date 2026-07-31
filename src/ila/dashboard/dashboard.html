@@ -3,14 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ILA 敏捷迭代闭环管控面板</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* 默认主题变量 (无 data-theme 时为暗色) */
         :root {
+            --radius: 12px;
             --bg: #0f1117; --surface: #1a1d28; --surface2: #222636; --border: #2d3142;
             --text: #e0e0e0; --muted: #7a7e8c; --accent: #4a9eff; --accent2: #6c5ce7;
             --green: #00b894; --red: #e74c3c; --yellow: #fdcb6e; --orange: #e17055;
-            --radius: 12px;
+        }
+        [data-theme="dark"] {
+            --bg: #0f1117; --surface: #1a1d28; --surface2: #222636; --border: #2d3142;
+            --text: #e0e0e0; --muted: #7a7e8c; --accent: #4a9eff; --accent2: #6c5ce7;
+            --green: #00b894; --red: #e74c3c; --yellow: #fdcb6e; --orange: #e17055;
+        }
+        [data-theme="light"] {
+            --bg: #f5f7fa; --surface: #ffffff; --surface2: #eef1f6; --border: #d8dee8;
+            --text: #1f2933; --muted: #6b7280; --accent: #2563eb; --accent2: #7c3aed;
+            --green: #059669; --red: #dc2626; --yellow: #d97706; --orange: #ea580c;
+        }
+        [data-theme="ocean"] {
+            --bg: #0a1929; --surface: #102a43; --surface2: #1b3a5b; --border: #2c4a6b;
+            --text: #d9e6f2; --muted: #8aa9c5; --accent: #38bdf8; --accent2: #0ea5e9;
+            --green: #2dd4bf; --red: #f87171; --yellow: #fbbf24; --orange: #fb923c;
+        }
+        [data-theme="sepia"] {
+            --bg: #f4ecd8; --surface: #efe6cf; --surface2: #e6dcc0; --border: #c9bb95;
+            --text: #4a3b28; --muted: #8a7559; --accent: #b8860b; --accent2: #a0522d;
+            --green: #6b8e23; --red: #b22222; --yellow: #c9a227; --orange: #cd853f;
+        }
+        [data-theme="grassland"] {
+            --bg: #eef4e0; --surface: #f7faef; --surface2: #e3edd2; --border: #c7d8a8;
+            --text: #2f3a1f; --muted: #6b7a52; --accent: #4caf50; --accent2: #8bc34a;
+            --green: #2e7d32; --red: #c62828; --yellow: #f9a825; --orange: #ef6c00;
+        }
+        [data-theme="starry"] {
+            --bg: #0a0a1a; --surface: #12122a; --surface2: #1a1a3a; --border: #2a2a5a;
+            --text: #d4d4f0; --muted: #7a7ab0; --accent: #c084fc; --accent2: #818cf8;
+            --green: #34d399; --red: #f87171; --yellow: #fbbf24; --orange: #fb923c;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -33,6 +67,14 @@
         .header-stat { display: flex; flex-direction: column; align-items: center; }
         .header-stat .val { font-size: 20px; font-weight: 700; color: var(--accent); }
         .header-stat .label { color: var(--muted); font-size: 11px; }
+        .theme-switcher { display: flex; align-items: center; gap: 6px; }
+        .theme-switcher-label { font-size: 16px; }
+        .theme-switcher select {
+            background: var(--surface2); color: var(--text);
+            border: 1px solid var(--border); border-radius: 8px;
+            padding: 6px 10px; font-size: 13px; cursor: pointer; outline: none;
+        }
+        .theme-switcher select:hover { border-color: var(--accent); }
 
         /* Layout */
         .main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
@@ -171,6 +213,14 @@
         .ab-bar.a2 { background: var(--green); }
         .ab-bar-val { font-size: 11px; color: var(--muted); }
 
+        /* Pagination */
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+        .pagination button { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .pagination button:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pagination button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+        .pagination .page-info { font-size: 12px; color: var(--muted); padding: 0 8px; }
+
         /* Tooltip */
         .obj-path { color: var(--muted); font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -179,12 +229,277 @@
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+        /* Approval Bar */
+        .approval-bar {
+            background: var(--surface);
+            border: 1px solid var(--yellow);
+            border-radius: var(--radius);
+            padding: 16px 24px;
+            margin-bottom: 24px;
+        }
+        .approval-bar-inner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .approval-icon { font-size: 24px; }
+        .approval-text {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--yellow);
+        }
+        .approval-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-approve {
+            background: var(--green);
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-approve:hover { opacity: 0.85; }
+        .btn-skip {
+            background: var(--surface2);
+            color: var(--text);
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-skip:hover { border-color: var(--muted); }
+
+        /* Verification Mode */
+        .verification-banner {
+            background: rgba(108, 92, 231, 0.12);
+            border: 1px solid var(--accent2);
+            border-left: 4px solid var(--accent2);
+            border-radius: var(--radius);
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .verification-icon { font-size: 20px; }
+        .verification-text { font-size: 14px; font-weight: 600; color: var(--accent2); }
+        .verification-modules { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+        .verification-module-tag {
+            display: inline-block; padding: 2px 10px; border-radius: 4px;
+            background: rgba(108, 92, 231, 0.2); color: var(--accent2);
+            font-size: 11px; font-weight: 600;
+        }
+        .verification-close-btn {
+            margin-left: auto;
+            background: none; border: 1px solid var(--border); color: var(--muted);
+            padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+        }
+        .verification-close-btn:hover { border-color: var(--accent2); color: var(--text); }
+
+        /* Section highlight for modified modules in verification mode */
+        .section.verification-modified {
+            position: relative;
+            border: 2px dashed var(--accent2) !important;
+            border-radius: 10px;
+            padding: 20px 20px 20px 20px;
+            margin-bottom: 20px;
+            background: rgba(108, 92, 231, 0.03);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 0 rgba(108, 92, 231, 0);
+            animation: verifyPulse 3s ease-in-out infinite;
+        }
+        .section.verification-modified:hover {
+            border-color: #a29bfe;
+            box-shadow: 0 0 20px rgba(108, 92, 231, 0.15);
+            animation: none;
+        }
+        /* 右上角验证角标 */
+        .section.verification-modified::after {
+            content: '🔍 验证中';
+            position: absolute;
+            top: -1px;
+            right: -1px;
+            background: linear-gradient(135deg, var(--accent2), #a29bfe);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 14px;
+            border-radius: 0 10px 0 10px;
+            letter-spacing: 0.5px;
+            opacity: 0.9;
+            z-index: 5;
+            box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+            pointer-events: none;
+        }
+        /* 左上角彩条装饰 */
+        .section.verification-modified::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            border-radius: 10px 0 0 10px;
+            background: linear-gradient(180deg, var(--accent2), #a29bfe, var(--accent2));
+            opacity: 0.9;
+        }
+        /* 选中状态脉冲动画 */
+        @keyframes verifyPulse {
+            0%, 100% { border-color: var(--accent2); }
+            50% { border-color: #a29bfe; }
+        }
+        .section.verification-modified .section-title .bar {
+            background: linear-gradient(180deg, var(--accent2), var(--accent));
+        }
+        .verify-badge {
+            display: inline-block;
+            font-size: 11px;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent2), #a29bfe);
+            padding: 2px 12px;
+            border-radius: 6px;
+            margin-left: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 6px rgba(108, 92, 231, 0.25);
+        }
+        /* Header verification indicator (dashboard module modified) */
+        .header.verification-modified {
+            border-bottom: 2px dashed var(--accent2) !important;
+            box-shadow: 0 2px 12px rgba(108, 92, 231, 0.2);
+        }
+        /* 验证横幅增强 */
+        .verification-banner {
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(108, 92, 231, 0.05));
+            border: 2px solid var(--accent2);
+            border-left: 5px solid var(--accent2);
+            border-radius: var(--radius);
+            padding: 14px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            animation: verifyPulse 3s ease-in-out infinite;
+        }
+        .verification-module-tag {
+            display: inline-block; padding: 3px 12px; border-radius: 6px;
+            background: linear-gradient(135deg, var(--accent2), #a29bfe);
+            color: #fff;
+            font-size: 12px; font-weight: 700;
+            box-shadow: 0 2px 6px rgba(108, 92, 231, 0.3);
+        }
+
+        /* ═══════════════════════════════════════════
+           原生验证标记 (由 verification-mode body class 控制) 仅在验证模式激活时触发高亮
+           ═══════════════════════════════════════════ */
+        .verification-mode [data-verification-modified] {
+            position: relative;
+            border: 2px dashed var(--accent2) !important;
+            border-radius: 10px;
+            background: rgba(108, 92, 231, 0.03);
+            transition: all 0.3s ease;
+            animation: verifyPulse 3s ease-in-out infinite;
+        }
+        .verification-mode [data-verification-modified]:hover {
+            border-color: #a29bfe;
+            box-shadow: 0 0 20px rgba(108, 92, 231, 0.15);
+            animation: none;
+        }
+        .verification-mode [data-verification-modified]::after {
+            content: '🔍 验证中';
+            position: absolute;
+            top: -1px; right: -1px;
+            background: linear-gradient(135deg, var(--accent2), #a29bfe);
+            color: #fff;
+            font-size: 11px; font-weight: 700;
+            padding: 3px 14px;
+            border-radius: 0 10px 0 10px;
+            letter-spacing: 0.5px;
+            opacity: 0.9;
+            z-index: 5;
+            box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+            pointer-events: none;
+        }
+        .verification-mode [data-verification-modified]::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            border-radius: 10px 0 0 10px;
+            background: linear-gradient(180deg, var(--accent2), #a29bfe, var(--accent2));
+            opacity: 0.9;
+        }
+        [data-verification-modified] .section-title .bar {
+            background: linear-gradient(180deg, var(--accent2), var(--accent)) !important;
+        }
+        .run-context {
+            background: var(--surface1);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            margin-bottom: 12px;
+        }
+        .context-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        .context-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 16px;
+        }
+        .context-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .context-label {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .context-value {
+            font-size: 13px;
+            color: var(--text);
+            word-break: break-all;
+            font-family: var(--mono-font, 'SF Mono', 'Cascadia Code', monospace);
+            background: var(--surface2);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        @media (max-width: 768px) {
+            .context-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('ila-theme');
+                if (['dark', 'light', 'ocean', 'sepia', 'grassland', 'starry'].indexOf(t) === -1) t = 'dark';
+            } catch (e) { t = 'dark'; }
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
 
 <!-- Header -->
-<div class="header">
+<div class="header" data-module="dashboard">
     <h1>
         <div class="logo">🔄</div>
         ILA 敏捷迭代闭环管控面板
@@ -195,73 +510,116 @@
         <div class="header-stat"><span class="val" id="stat-live">-</span><span class="label">上线版本</span></div>
         <div class="header-stat"><span class="val" id="stat-platforms">-</span><span class="label">平台</span></div>
     </div>
+    <div class="theme-switcher">
+        <span class="theme-switcher-label">🎨</span>
+        <select id="theme-select" onchange="applyTheme(this.value, true)" title="切换主题">
+            <option value="dark">暗色</option>
+            <option value="light">亮色</option>
+            <option value="ocean">海洋</option>
+            <option value="sepia">复古</option>
+            <option value="grassland">草原</option>
+            <option value="starry">星空</option>
+        </select>
+    </div>
 </div>
 
 <div class="main">
 
+    <!-- Verification Mode Banner -->
+    <div id="verification-banner" class="verification-banner" style="display:none;">
+        <span class="verification-icon">🧪</span>
+        <span class="verification-text">验证模式</span>
+        <span class="verification-modules" id="verification-modules"></span>
+        <button class="verification-close-btn" onclick="dismissVerificationBanner()">✕ 关闭</button>
+    </div>
+
     <!-- Pipeline Flow -->
-    <div class="section">
+    <div class="section" data-module="core">
         <div class="section-title"><div class="bar"></div>迭代闭环流程</div>
         <div class="pipeline" id="pipeline"></div>
     </div>
 
     <!-- Action Bar -->
-    <div class="section">
+    <div class="section" data-module="core">
         <div style="display: flex; gap: 12px; margin-bottom: 16px;">
             <button class="btn btn-primary" onclick="openRunModal()">🚀 发起迭代</button>
-            <button class="btn btn-primary" onclick="refreshAll()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="refreshAll(); refreshObjects();">🔄 刷新</button>
             <button class="btn btn-danger" onclick="openRollbackModal()">🔙 回滚</button>
         </div>
     </div>
 
     <div class="grid-2">
         <!-- Objects Table -->
-        <div class="section">
+        <div class="section" data-module="core">
             <div class="section-title"><div class="bar"></div>纳管对象</div>
             <div class="card">
                 <table>
                     <thead><tr><th>对象ID</th><th>类型</th><th>版本</th><th>操作</th></tr></thead>
                     <tbody id="objects-tbody"></tbody>
                 </table>
+                <div class="pagination" id="objects-pagination"></div>
             </div>
         </div>
 
         <!-- Version History -->
-        <div class="section">
+        <div class="section" data-module="core">
             <div class="section-title"><div class="bar"></div>版本历史</div>
             <div class="card">
                 <table>
-                    <thead><tr><th>对象</th><th>版本</th><th>状态</th><th>时间</th></tr></thead>
+                    <thead><tr><th>对象</th><th>迭代版本</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
                     <tbody id="versions-tbody"></tbody>
                 </table>
+                <div class="pagination" id="versions-pagination"></div>
             </div>
         </div>
     </div>
 
-    <!-- A/B Test Results & Log -->
+    <!-- A/B Test Results & Real-time Logs -->
     <div class="grid-2">
-        <div class="section">
+        <div class="section" data-module="core">
+            <div class="section-title"><div class="bar"></div>实时日志</div>
+            <div id="run-context" class="run-context" style="display:none;">
+                <div class="context-title">📋 迭代上下文</div>
+                <div class="context-grid">
+                    <div class="context-item"><span class="context-label">原服务地址目录</span><span class="context-value" id="ctx-source-dir">-</span></div>
+                    <div class="context-item"><span class="context-label">沙箱目录地址</span><span class="context-value" id="ctx-sandbox-path">-</span></div>
+                    <div class="context-item"><span class="context-label">原服务URL</span><span class="context-value" id="ctx-original-url">-</span></div>
+                    <div class="context-item"><span class="context-label">新服务URL</span><span class="context-value" id="ctx-staging-url">-</span></div>
+                </div>
+            </div>
+            <div class="log-viewer" id="log-viewer">
+                <div class="log-line info"><span class="ts">[--:--:--]</span>等待操作...</div>
+            </div>
+        </div>
+        <div class="section" data-module="core">
             <div class="section-title"><div class="bar"></div>最新 A/B 测试结果</div>
             <div class="card" id="ab-results">
                 <p style="color: var(--muted); text-align: center; padding: 20px;">暂无测试结果</p>
             </div>
         </div>
-        <div class="section">
-            <div class="section-title"><div class="bar"></div>实时日志</div>
-            <div class="log-viewer" id="log-viewer">
-                <div class="log-line info"><span class="ts">[--:--:--]</span>等待操作...</div>
+    </div>
+
+    <!-- 正式上线批准栏 -->
+    <div id="approval-bar" class="approval-bar" style="display:none;">
+        <div class="approval-bar-inner">
+            <span class="approval-icon">⚠️</span>
+            <span class="approval-text">正式上线待用户确认，请选择操作</span>
+            <div class="approval-actions">
+                <button class="btn btn-approve" onclick="approveRun()">✅ 批准正式上线</button>
+                <button class="btn btn-skip" onclick="skipRun()">⏭️ 跳过</button>
             </div>
         </div>
     </div>
 
     <!-- Reports -->
-    <div class="section">
-        <div class="section-title"><div class="bar"></div>迭代报告</div>
+    <div class="section" data-module="core">
+        <div class="section-title"><div class="bar"></div>版本报告</div>
         <div class="card">
             <table>
-                <thead><tr><th>任务ID</th><th>目标对象</th><th>判定</th><th>时间</th><th>操作</th></tr></thead>
+                <thead><tr><th>任务ID</th><th>目标对象</th><th>判定</th><th>测试结果</th><th>结论摘要</th><th>时间</th><th>操作</th></tr></thead>
                 <tbody id="reports-tbody"></tbody>
             </table>
+            <div class="pagination" id="reports-pagination"></div>
         </div>
     </div>
 
@@ -275,7 +633,7 @@
         <select id="run-object-id"></select>
         <label>需求描述</label>
         <textarea id="run-requirement" placeholder="描述需要修复的 bug 或需要开发的功能..."></textarea>
-        <label><input type="checkbox" id="run-auto-approve" style="width:auto;margin-right:8px;">自动批准热切换 (跳过确认直接上线)</label>
+        <label><input type="checkbox" id="run-auto-approve" style="width:auto;margin-right:8px;">自动批准正式上线 (跳过确认直接上线)</label>
         <div class="modal-actions">
             <button class="btn" style="background:var(--surface2);color:var(--text);" onclick="closeModal('run-modal')">取消</button>
             <button class="btn btn-primary" onclick="submitRun()">启动迭代</button>
@@ -298,29 +656,39 @@
 
 <script>
 const API = '';
-let ws = null;
 let pipelinePhases = [];
-let currentRunState = {};
+let pollTimer = null;
+let lastLogCount = 0;
 
-// ---- WebSocket ----
-function initWS() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
-    ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        handleMessage(msg);
-    };
-    ws.onclose = () => setTimeout(initWS, 3000);
+// ---- 主题切换 (暗色 / 亮色 / 海洋 / 复古 / 草原) ----
+const SUPPORTED_THEMES = ['dark', 'light', 'ocean', 'sepia', 'grassland', 'starry'];
+
+function applyTheme(theme, persist) {
+    if (!SUPPORTED_THEMES.includes(theme)) theme = 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const sel = document.getElementById('theme-select');
+    if (sel) sel.value = theme;
+    if (persist) {
+        try { localStorage.setItem('ila-theme', theme); } catch (e) {}
+        fetch(`${API}/api/theme`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({theme: theme})
+        }).catch(() => {});
+    }
 }
 
-function handleMessage(msg) {
-    if (msg.type === 'phase_update') {
-        updatePipelinePhase(msg.phase, msg.status, msg.detail);
-    } else if (msg.type === 'log') {
-        addLog(msg.level, msg.message);
-    } else if (msg.type === 'run_complete') {
-        refreshAll();
+async function loadTheme() {
+    let theme = null;
+    try { theme = localStorage.getItem('ila-theme'); } catch (e) {}
+    if (!theme || !SUPPORTED_THEMES.includes(theme)) {
+        try {
+            const res = await fetch(`${API}/api/themes`);
+            const data = await res.json();
+            theme = data.current || data.default || 'dark';
+        } catch (e) { theme = 'dark'; }
     }
+    applyTheme(theme, false);
 }
 
 // ---- Pipeline ----
@@ -348,25 +716,20 @@ function renderPipeline() {
         if (i < pipelinePhases.length - 1) {
             const arrow = document.createElement('div');
             arrow.className = 'pipeline-arrow';
-            arrow.textContent = '→';
+            arrow.textContent = '->';
             container.appendChild(arrow);
         }
     });
 }
 
-function updatePipelinePhase(phaseId, status, detail) {
+function updatePipelinePhase(phaseId, status) {
     const el = document.getElementById(`phase-${phaseId}`);
     const badge = document.getElementById(`badge-${phaseId}`);
     if (!el) return;
-
     el.className = `pipeline-phase ${status}`;
     const labels = { pending: '待命', running: '执行中', done: '完成', failed: '失败', skipped: '跳过' };
     badge.className = `status-badge ${status}`;
     badge.textContent = labels[status] || status;
-
-    if (detail) {
-        addLog(status === 'failed' ? 'error' : 'info', `[${phaseId}] ${detail}`);
-    }
 }
 
 function resetPipeline() {
@@ -375,7 +738,17 @@ function resetPipeline() {
 
 // ---- Data Loading ----
 async function refreshAll() {
-    await Promise.all([loadStatus(), loadObjects(), loadVersions(), loadReports()]);
+    await Promise.all([loadStatus(), loadVersions(), loadReports()]);
+}
+
+// 记录当前纳管对象页码 (仅在分页点击时加载)
+let objectsCurrentPage = 1;
+
+// 仅在分页导航时调用的包装函数
+async function refreshObjects(page = null) {
+    if (page === null) page = objectsCurrentPage;
+    objectsCurrentPage = page;
+    await loadObjects(page);
 }
 
 async function loadStatus() {
@@ -385,19 +758,38 @@ async function loadStatus() {
     document.getElementById('stat-versions').textContent = data.total_versions || 0;
     document.getElementById('stat-live').textContent = data.live_versions || 0;
     document.getElementById('stat-platforms').textContent = (data.platforms_registered || []).join(', ') || '-';
+    // 验证模式标识
+    applyVerificationMode(data.verification_mode, data.modified_modules);
 }
 
-async function loadObjects() {
-    const res = await fetch(`${API}/api/objects`);
+let objectsPage = 1;
+let objectsPageSize = 10;
+let objectsTotalPages = 1;
+
+async function loadObjects(page = 1) {
+    objectsCurrentPage = page;
+    const res = await fetch(`${API}/api/objects?page=${page}&page_size=${objectsPageSize}`);
     const data = await res.json();
+    objectsPage = data.page;
+    objectsTotalPages = data.total_pages;
     const tbody = document.getElementById('objects-tbody');
     tbody.innerHTML = '';
     const select = document.getElementById('run-object-id');
     const rbSelect = document.getElementById('rollback-object-id');
-    select.innerHTML = '';
-    rbSelect.innerHTML = '';
+    if (page === 1) {
+        select.innerHTML = '';
+        rbSelect.innerHTML = '';
+        // Also fetch all objects for dropdowns
+        const allRes = await fetch(`${API}/api/objects?page=1&page_size=9999`);
+        const allData = await allRes.json();
+        allData.objects.forEach(obj => {
+            select.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
+            rbSelect.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
+        });
+    }
     data.objects.forEach(obj => {
         const tr = document.createElement('tr');
+            tr.setAttribute('data-verification-modified', 'true');
         tr.onclick = () => showObjectDetail(obj.object_id);
         tr.innerHTML = `
             <td style="font-family:monospace;font-size:12px;">${obj.object_id}</td>
@@ -406,49 +798,174 @@ async function loadObjects() {
             <td><button class="btn btn-primary btn-sm" onclick="event.stopPropagation();quickRun('${obj.object_id}')">迭代</button></td>
         `;
         tbody.appendChild(tr);
-        select.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
-        rbSelect.innerHTML += `<option value="${obj.object_id}">${obj.object_id}</option>`;
     });
+    renderPagination(data.total, data.page, data.total_pages);
 }
 
-async function loadVersions() {
-    const res = await fetch(`${API}/api/versions`);
+function renderPagination(total, page, totalPages) {
+    const container = document.getElementById('objects-pagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadObjects(${page - 1})">‹ 上一页</button>`;
+    html += `<span class="page-info">第 ${page} / ${totalPages} 页 (共 ${total} 条)</span>`;
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages <= 7 || p === 1 || p === totalPages || Math.abs(p - page) <= 1) {
+            html += `<button class="${p === page ? 'active' : ''}" onclick="loadObjects(${p})">${p}</button>`;
+        } else if (p === 2 && page > 3) {
+            html += `<button disabled>…</button>`;
+        } else if (p === totalPages - 1 && page < totalPages - 2) {
+            html += `<button disabled>…</button>`;
+        }
+    }
+    html += `<button ${page >= totalPages ? 'disabled' : ''} onclick="loadObjects(${page + 1})">下一页 ›</button>`;
+    container.innerHTML = html;
+}
+
+let VERSION_OPERATIONS = {};
+let versionsPage = 1;
+let versionsPageSize = 10;
+let versionsTotalPages = 1;
+
+async function loadVersionOperations() {
+    try {
+        const res = await fetch(`${API}/api/version/operations`);
+        const data = await res.json();
+        VERSION_OPERATIONS = data.operations || {};
+    } catch(e) { VERSION_OPERATIONS = {}; }
+}
+
+async function loadVersions(page = 1) {
+    if (Object.keys(VERSION_OPERATIONS).length === 0) {
+        await loadVersionOperations();
+    }
+    const res = await fetch(`${API}/api/versions?page=${page}&page_size=${versionsPageSize}`);
     const data = await res.json();
+    versionsPage = data.page;
+    versionsTotalPages = data.total_pages;
     const tbody = document.getElementById('versions-tbody');
     tbody.innerHTML = '';
-    data.versions.slice(0, 20).forEach(v => {
+    data.versions.forEach(v => {
         const tr = document.createElement('tr');
+            tr.setAttribute('data-verification-modified', 'true');
         const statusClass = `badge-${v.status || 'pending'}`;
         const statusText = {developing:'开发中', testing:'测试中', verified:'已验证', live:'已上线', rolled_back:'已回滚', failed:'失败'}[v.status] || v.status;
+        const ops = VERSION_OPERATIONS[v.status] || [];
+        const opButtons = ops.map(op =>
+            `<button class="btn btn-primary btn-sm" style="margin-right:4px;" onclick="operateVersion(${v.id}, '${op.operation}', '${op.label}')">${op.label}</button>`
+        ).join('');
         tr.innerHTML = `
             <td style="font-family:monospace;font-size:11px;">${v.object_id}</td>
-            <td>${v.version}</td>
+            <td style="text-align:center;font-weight:600;color:var(--accent);">${v.iter_version || '?'}</td>
             <td><span class="badge ${statusClass}">${statusText}</span></td>
             <td style="font-size:11px;color:var(--muted);">${(v.created_at||'').slice(0,19)}</td>
+            <td>${opButtons || '<span style="color:var(--muted);font-size:11px;">-</span>'}</td>
         `;
         tbody.appendChild(tr);
     });
+    renderVersionPagination(data.total, data.page, data.total_pages);
 }
 
-async function loadReports() {
+function renderVersionPagination(total, page, totalPages) {
+    const container = document.getElementById('versions-pagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadVersions(${page - 1})">‹ 上一页</button>`;
+    html += `<span class="page-info">第 ${page} / ${totalPages} 页 (共 ${total} 条)</span>`;
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages <= 7 || p === 1 || p === totalPages || Math.abs(p - page) <= 1) {
+            html += `<button class="${p === page ? 'active' : ''}" onclick="loadVersions(${p})">${p}</button>`;
+        } else if (p === 2 && page > 3) {
+            html += `<button disabled>…</button>`;
+        } else if (p === totalPages - 1 && page < totalPages - 2) {
+            html += `<button disabled>…</button>`;
+        }
+    }
+    html += `<button ${page >= totalPages ? 'disabled' : ''} onclick="loadVersions(${page + 1})">下一页 ›</button>`;
+    container.innerHTML = html;
+}
+
+async function operateVersion(versionId, operation, label) {
+    if (!confirm(`确认对版本 #${versionId} 执行「${label}」操作？`)) return;
     try {
-        const res = await fetch(`${API}/api/reports`);
+        const res = await fetch(`${API}/api/version/${versionId}/operate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({operation}),
+        });
         const data = await res.json();
+        if (data.status === 'success' || data.status === 'ok' || data.status === 'rolled_back') {
+            addLog('success', `版本 #${versionId}「${label}」执行成功`);
+            await loadVersions();
+            await loadStatus();
+        } else {
+            addLog('error', `版本操作失败: ${data.reason || ''}`);
+            alert(`操作失败: ${data.reason || '未知原因'}`);
+        }
+    } catch(e) {
+        addLog('error', `版本操作请求异常: ${e.message}`);
+        alert(`请求失败: ${e.message}`);
+    }
+}
+
+let reportsPage = 1;
+let reportsPageSize = 10;
+let reportsTotalPages = 1;
+
+async function loadReports(page) {
+    page = page || 1;
+    try {
+        const res = await fetch(`${API}/api/reports?page=${page}&page_size=${reportsPageSize}`);
+        const data = await res.json();
+        reportsPage = data.page;
+        reportsTotalPages = data.total_pages;
         const tbody = document.getElementById('reports-tbody');
         tbody.innerHTML = '';
         data.reports.forEach(r => {
             const verdictClass = r.verdict === 'success' ? 'badge-pass' : r.verdict === 'fail' ? 'badge-fail' : 'badge-degraded';
+            const verdictLabel = r.verdict_icon ? `${r.verdict_icon} ${r.verdict_label || r.verdict}` : (r.verdict_label || r.verdict);
+            const testInfo = r.total_cases > 0
+                ? `<span style="font-size:11px;">${r.passed_cases}/${r.total_cases} 通过` + (r.failed_cases > 0 ? ` <span style="color:var(--danger);">${r.failed_cases} 失败</span>` : '') + '</span>'
+                : '<span style="color:var(--muted);">-</span>';
+            const conclusionSummary = r.overall_text
+                ? `<span style="font-size:11px;" title="${(r.summary||'').replace(/"/g,'&quot;')}">${r.overall_text}</span>`
+                : (r.summary ? `<span style="font-size:11px;">${r.summary.slice(0,40)}...</span>` : '<span style="color:var(--muted);">-</span>');
             const tr = document.createElement('tr');
+            tr.setAttribute('data-verification-modified', 'true');
             tr.innerHTML = `
                 <td style="font-family:monospace;font-size:11px;">${r.task_id}</td>
-                <td>${r.target}</td>
-                <td><span class="badge ${verdictClass}">${r.verdict}</span></td>
+                <td>${r.target || '-'}</td>
+                <td><span class="badge ${verdictClass}">${verdictLabel}</span></td>
+                <td>${testInfo}</td>
+                <td>${conclusionSummary}</td>
                 <td style="font-size:11px;color:var(--muted);">${(r.timestamp||'').slice(0,19)}</td>
                 <td><button class="btn btn-sm" style="background:var(--surface2);color:var(--text);" onclick="viewReport('${r.task_id}')">查看</button></td>
             `;
             tbody.appendChild(tr);
         });
+        renderReportsPagination(data.total, data.page, data.total_pages);
     } catch(e) { /* reports may not exist yet */ }
+}
+
+function renderReportsPagination(total, page, totalPages) {
+    const container = document.getElementById('reports-pagination');
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
+    let html = '';
+    html += `<button ${page <= 1 ? 'disabled' : ''} onclick="loadReports(${page - 1})">‹ 上一页</button>`;
+    html += `<span class="page-info">第 ${page} / ${totalPages} 页 (共 ${total} 条)</span>`;
+    for (let p = 1; p <= totalPages; p++) {
+        if (totalPages <= 7 || p === 1 || p === totalPages || Math.abs(p - page) <= 1) {
+            html += `<button class="${p === page ? 'active' : ''}" onclick="loadReports(${p})">${p}</button>`;
+        } else if (p === 2 && page > 3) { html += '<button disabled>…</button>'; }
+        else if (p === totalPages - 1 && page < totalPages - 2) { html += '<button disabled>…</button>'; }
+    }
+    html += `<button ${page >= totalPages ? 'disabled' : ''} onclick="loadReports(${page + 1})">下一页 ›</button>`;
+    container.innerHTML = html;
 }
 
 async function showObjectDetail(objectId) {
@@ -500,35 +1017,128 @@ async function submitRun() {
 
     closeModal('run-modal');
     resetPipeline();
+    // 清空日志和批准栏
+    document.getElementById('log-viewer').innerHTML = '';
+    document.getElementById('approval-bar').style.display = 'none';
+    lastLogCount = 0;
 
-    // Simulate phase progression (in real impl, WebSocket pushes updates)
-    const phases = ['analyze', 'develop', 'test', 'verify', 'switch'];
-    for (const phase of phases) {
-        updatePipelinePhase(phase, 'running');
-        addLog('info', `正在执行: ${pipelinePhases.find(p=>p.id===phase)?.name || phase}`);
+    const res = await fetch(`${API}/api/run`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({object_id: objectId, requirement, auto_approve: autoApprove})
+    });
+    const data = await res.json();
 
-        const res = await fetch(`${API}/api/run`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({object_id: objectId, requirement, auto_approve: autoApprove})
-        });
+    if (data.status === 'started') {
+        addLog('info', '迭代闭环已启动，实时监控进度...');
+        startPolling();
+    } else if (data.status === 'busy') {
+        addLog('warn', data.message || '已有迭代正在执行');
+    } else {
+        updatePipelinePhase('analyze', 'failed');
+        addLog('error', `启动迭代失败: ${data.reason || data.detail || data.message || ''}`);
+    }
+}
+
+async function approveRun() {
+    document.getElementById('approval-bar').style.display = 'none';
+    addLog('info', '用户已批准正式上线，正在执行迁移...');
+    const res = await fetch(`${API}/api/run/approve`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    });
+    const data = await res.json();
+    if (data.status === 'approved') {
+        addLog('success', data.message || '正式上线已批准');
+        // 显示重启等待状态（复用批准栏）
+        var bar = document.getElementById('approval-bar');
+        bar.innerHTML = '<div class="approval-bar-inner" style="background:linear-gradient(135deg,rgba(253,203,110,0.15),rgba(253,203,110,0.05));border-color:var(--yellow);"><span class="approval-icon">🔄</span><span class="approval-text">服务器重启中，页面恢复后自动刷新...</span><span style="color:var(--muted);font-size:12px;" id="restart-countdown">0s</span></div>';
+        bar.style.display = 'block';
+        startAutoRefresh();
+    } else {
+        addLog('error', `正式上线失败: ${data.reason || data.message || ''}`);
+    }
+}
+
+async function skipRun() {
+    document.getElementById('approval-bar').style.display = 'none';
+    addLog('warn', '用户已跳过热切换');
+    const res = await fetch(`${API}/api/run/skip`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    });
+    const data = await res.json();
+    if (data.status === 'skipped') {
+        addLog('warn', data.message || '已跳过热切换');
+        refreshAll();
+    } else {
+        addLog('error', `跳过热切换失败: ${data.reason || data.message || ''}`);
+    }
+}
+
+// ---- 轮询进度 ----
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(pollProgress, 1000);
+    // 立即轮询一次
+    pollProgress();
+}
+
+async function pollProgress() {
+    try {
+        const res = await fetch(`${API}/api/run/status`);
         const data = await res.json();
 
-        if (data.status === 'started') {
-            updatePipelinePhase(phase, 'done');
-            addLog('success', `${phase} 阶段完成`);
-        } else {
-            updatePipelinePhase(phase, 'failed');
-            addLog('error', `${phase} 阶段失败: ${data.reason || ''}`);
-            break;
+        // 更新各阶段状态
+        if (data.phases) {
+            for (const [phaseId, info] of Object.entries(data.phases)) {
+                updatePipelinePhase(phaseId, info.status);
+            }
         }
-        // Only call /api/run once; subsequent phases are simulated
-        if (phase === 'analyze') break;
-    }
 
-    // For real run, the backend handles all phases. Here we just trigger and wait.
-    addLog('info', '迭代闭环已在后台启动，等待完成...');
-    setTimeout(refreshAll, 5000);
+        // 更新上下文信息（沙箱路径、服务URL等）
+        if (data.context && Object.keys(data.context).length > 0) {
+            const ctxEl = document.getElementById('run-context');
+            if (ctxEl) {
+                ctxEl.style.display = 'block';
+                if (data.context.source_dir) document.getElementById('ctx-source-dir').textContent = data.context.source_dir;
+                if (data.context.sandbox_path) document.getElementById('ctx-sandbox-path').textContent = data.context.sandbox_path;
+                if (data.context.original_url) document.getElementById('ctx-original-url').textContent = data.context.original_url;
+                if (data.context.staging_url) document.getElementById('ctx-staging-url').textContent = data.context.staging_url;
+                // 如果有 staging_url，将其设为可点击链接
+                const stagingEl = document.getElementById('ctx-staging-url');
+                if (stagingEl && data.context.staging_url && data.context.staging_url.startsWith('http')) {
+                    stagingEl.innerHTML = '<a href="' + data.context.staging_url + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;">' + data.context.staging_url + '</a>';
+                }
+            }
+        }
+
+        // 追加新日志
+        if (data.logs && data.logs.length > lastLogCount) {
+            const newLogs = data.logs.slice(lastLogCount);
+            newLogs.forEach(log => addLog(log.level, log.message));
+            lastLogCount = data.logs.length;
+        }
+
+        // 检查是否完成
+        if (data.status && data.status !== 'running' && data.status !== 'pending_approval') {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            // 自动刷新模式下不隐藏批准栏（显示重启倒计时）
+            if (!refreshInterval) {
+                document.getElementById('approval-bar').style.display = 'none';
+            }
+            // 正常完成：刷新数据
+            refreshAll();
+        }
+
+        // pending_approval: 显示批准栏
+        if (data.status === 'pending_approval') {
+            document.getElementById('approval-bar').style.display = 'block';
+        }
+    } catch(e) {
+        // 网络临时中断，下次重试
+    }
 }
 
 async function submitRollback() {
@@ -547,6 +1157,7 @@ async function submitRollback() {
         addLog('error', `回滚失败: ${data.reason || data.status}`);
     }
     refreshAll();
+    refreshObjects();
 }
 
 async function viewReport(taskId) {
@@ -556,8 +1167,13 @@ async function viewReport(taskId) {
         const w = window.open('', '_blank');
         w.document.write(data.html);
         w.document.close();
-    } else if (data.markdown) {
-        alert(data.markdown);
+    } else if (data.md) {
+        const w = window.open('', '_blank');
+        w.document.write('<html><head><meta charset="utf-8"><title>迭代报告</title><style>body{font-family:monospace;padding:20px;background:#1a1a2e;color:#e0e0e0;white-space:pre-wrap;}h1{color:#00ff88;}</style></head><body>');
+        w.document.write('<h1>迭代报告</h1>');
+        w.document.write('<pre style="background:#16213e;padding:16px;border-radius:8px;overflow-x:auto;">' + data.md.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>');
+        w.document.write('</body></html>');
+        w.document.close();
     } else {
         alert('报告内容不可用');
     }
@@ -574,17 +1190,124 @@ function addLog(level, message) {
     viewer.scrollTop = viewer.scrollHeight;
 }
 
+// ---- Verification Mode ----
+function applyVerificationMode(enabled, modules) {
+    const banner = document.getElementById('verification-banner');
+    // 清除所有旧的验证标识
+    document.querySelectorAll('.verification-modified').forEach(el => el.classList.remove('verification-modified'));
+    document.querySelectorAll('.verify-badge').forEach(el => el.remove());
+
+    if (!enabled) {
+        banner.style.display = 'none';
+        document.body.classList.remove('verification-mode');
+        return;
+    }
+
+    // 始终显示横幅（即使模块为空，表明验证模式已激活）
+    banner.style.display = 'flex';
+    document.body.classList.add('verification-mode');
+    const container = document.getElementById('verification-modules');
+
+    if (!modules || modules.length === 0) {
+        container.innerHTML = '未检测到文件变更';
+        return;
+    }
+
+    // 显示变更文件列表（文件级颗粒度）
+    container.innerHTML = '修改文件: ' + modules.map(m =>
+        `<span class="verification-module-tag" title="${m.id}">${m.name}</span>`
+    ).join(' ');
+
+    // 高亮有 data-verification-modified 属性的元素（Channel 1: Codex 预埋）
+    document.querySelectorAll('[data-verification-modified]').forEach(el => {
+        el.classList.add('verification-modified');
+        const title = el.querySelector('.section-title');
+        if (title && !title.querySelector('.verify-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'verify-badge';
+            badge.textContent = '已修改';
+            title.appendChild(badge);
+        }
+        if (el.classList.contains('header')) {
+            const h1 = el.querySelector('h1');
+            if (h1 && !h1.querySelector('.verify-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'verify-badge';
+                badge.textContent = '已修改';
+                h1.appendChild(badge);
+            }
+        }
+    });
+
+    // 高亮 data-module 匹配的元素（Channel 2: 后端检测）
+    const modifiedIds = new Set(modules.map(m => m.id));
+    document.querySelectorAll('[data-module]').forEach(el => {
+        const mid = el.getAttribute('data-module');
+        if (modifiedIds.has(mid)) {
+            el.classList.add('verification-modified');
+            const title = el.querySelector('.section-title');
+            if (title && !title.querySelector('.verify-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'verify-badge';
+                badge.textContent = '已修改';
+                title.appendChild(badge);
+            }
+        }
+    });
+}
+
+function dismissVerificationBanner() {
+    document.getElementById('verification-banner').style.display = 'none';
+    // 保留 body class 和徽章 (关闭横幅只是个人偏好)
+}
+
+// ---- 原生验证标记检测 (Codex 开发时预埋在 HTML 中的 data-verification-modified) ----
+function detectNativeVerificationMarkers() {
+    if (!document.body.classList.contains('verification-mode')) return;
+    // applyVerificationMode 已处理 data-verification-modified 元素，此处仅补充日志
+    const marked = document.querySelectorAll('[data-verification-modified]');
+    if (marked.length > 0) {
+        addLog('info', `检测到 ${marked.length} 个原生验证标记（Codex 预埋）`);
+    }
+}
+
+// ---- 定时刷新 (服务器重启后自动恢复) ----
+let refreshInterval = null;
+
+function startAutoRefresh() {
+    if (refreshInterval) return;
+    addLog('warn', '服务器即将重启，页面将定时检测并自动恢复...');
+    var countdown = 0;
+    var cdEl = document.getElementById('restart-countdown');
+    refreshInterval = setInterval(() => {
+        countdown += 3;
+        if (cdEl) cdEl.textContent = countdown + 's';
+        var ctrl = new AbortController();
+        var t = setTimeout(function() { ctrl.abort(); }, 2000);
+        fetch('/api/status', { signal: ctrl.signal })
+            .then(function(r) {
+                clearTimeout(t);
+                if (r.ok) { clearInterval(refreshInterval); window.location.href = '/'; }
+            })
+            .catch(function() { clearTimeout(t); });
+    }, 3000);
+}
+
 // ---- Init ----
 async function init() {
+    await loadTheme();
     await loadPipeline();
-    await refreshAll();
-    initWS();
+    // 加载状态/版本/报表，完成后默认加载纳管对象第一页
+    await Promise.all([loadStatus(), loadVersions(), loadReports()]);
+    // 页面初始化后默认展示纳管对象第一页，无需点击刷新按钮
+    await loadObjects(1);
+    detectNativeVerificationMarkers();
     addLog('success', 'ILA 管控面板已就绪');
 }
 
 init();
-// Auto-refresh every 15s
-setInterval(refreshAll, 15000);
 </script>
 </body>
 </html>
+
+<!-- ILA test modification -->

@@ -152,7 +152,188 @@ class Reporter:
             "failed_cases": test_results.get("failed_cases", 0),
             "regression_count": test_results.get("regression_count", 0),
             "summary": test_results.get("summary", ""),
+            # 迭代过程 & 结论
+            "process_summary": self._build_process_summary(task_spec, test_results, deploy_result, swap_result),
+            "conclusion": self._build_conclusion(task_spec, test_results, deploy_result, swap_result, verdict),
+            "requirement": task_spec.requirement,
+            "sandbox_level": task_spec.sandbox_level,
+            "rollback_plan": task_spec.rollback_plan,
         }
+
+    # ---- 迭代过程 & 结论构建 ----
+
+    def _build_process_summary(
+        self,
+        task_spec: TaskSpec,
+        test_results: dict[str, Any],
+        deploy_result: dict[str, Any],
+        swap_result: dict[str, Any],
+    ) -> list[dict[str, str]]:
+        """构建迭代过程摘要 - 描述每个阶段做了什么."""
+        phases: list[dict[str, str]] = []
+
+        # 阶段1: 需求分析
+        phases.append({
+            "phase": "需求分析",
+            "icon": "🔍",
+            "detail": f"分析需求: {task_spec.requirement}",
+        })
+
+        # 阶段2: 沙箱开发
+        changes = task_spec.changes
+        if changes:
+            change_descs = []
+            for c in changes:
+                ct_label = self._change_type_label(c.change_type)
+                change_descs.append(f"{ct_label}: {c.description}")
+            phases.append({
+                "phase": "沙箱开发",
+                "icon": "🔧",
+                "detail": "变更项:\n" + "\n".join(f"  - {d}" for d in change_descs),
+            })
+        else:
+            phases.append({
+                "phase": "沙箱开发",
+                "icon": "🔧",
+                "detail": "无变更项",
+            })
+
+        # 阶段3: A/B 测试
+        total = test_results.get("total_cases", 0)
+        passed = test_results.get("passed_cases", 0)
+        failed = test_results.get("failed_cases", 0)
+        regression = test_results.get("regression_count", 0)
+        if total > 0:
+            detail = f"执行 {total} 个测试用例, {passed} 通过, {failed} 失败"
+            if regression > 0:
+                detail += f", {regression} 回归"
+            phases.append({
+                "phase": "A/B 对比测试",
+                "icon": "🧪",
+                "detail": detail,
+            })
+        else:
+            phases.append({
+                "phase": "A/B 对比测试",
+                "icon": "🧪",
+                "detail": "无测试用例",
+            })
+
+        # 阶段4: 部署验证
+        deploy_passed = deploy_result.get("passed", False)
+        if deploy_passed:
+            phases.append({
+                "phase": "部署验证",
+                "icon": "🚀",
+                "detail": "部署验证通过, 新版本已部署至沙箱环境",
+            })
+        else:
+            issues = deploy_result.get("issues", [])
+            detail = "部署验证未通过"
+            if issues:
+                detail += ": " + "; ".join(str(i) for i in issues)
+            phases.append({
+                "phase": "部署验证",
+                "icon": "🚀",
+                "detail": detail,
+            })
+
+        # 阶段5: 热切换上线
+        swap_status = swap_result.get("status", "unknown")
+        if swap_status == "success":
+            phases.append({
+                "phase": "热切换上线",
+                "icon": "🔄",
+                "detail": "新版本已成功切换上线, 服务正常运行",
+            })
+        elif swap_status == "rolled_back":
+            reason = swap_result.get("reason", "未知原因")
+            phases.append({
+                "phase": "热切换上线",
+                "icon": "⏪",
+                "detail": f"热切换失败, 已自动回滚至上一版本 (原因: {reason})",
+            })
+        else:
+            phases.append({
+                "phase": "热切换上线",
+                "icon": "⏳",
+                "detail": f"热切换状态: {swap_status}",
+            })
+
+        return phases
+
+    def _build_conclusion(
+        self,
+        task_spec: TaskSpec,
+        test_results: dict[str, Any],
+        deploy_result: dict[str, Any],
+        swap_result: dict[str, Any],
+        verdict: str,
+    ) -> dict[str, str]:
+        """构建最终结论."""
+        swap_status = swap_result.get("status", "unknown")
+        new_version = swap_result.get("new_version", "unknown")
+        deploy_passed = deploy_result.get("passed", False)
+        total = test_results.get("total_cases", 0)
+        passed = test_results.get("passed_cases", 0)
+        regression = test_results.get("regression_count", 0)
+
+        # 综合判定
+        if swap_status == "success":
+            overall = "pass"
+            overall_text = "✅ 迭代成功, 新版本已上线运行"
+        elif swap_status == "rolled_back":
+            overall = "rolled_back"
+            overall_text = "⏪ 迭代已回滚, 新版本因异常自动下线, 服务恢复至迭代前状态"
+        elif deploy_passed:
+            overall = "deployed"
+            overall_text = "⚠️ 新版本已部署但尚未完成热切换, 需人工介入"
+        else:
+            overall = "failed"
+            overall_text = "❌ 迭代失败, 部署验证未通过, 未上线"
+
+        # 测试总结
+        if total > 0:
+            test_summary = f"共 {total} 个测试用例, {passed} 通过"
+            if regression > 0:
+                test_summary += f", 检测到 {regression} 个回归问题"
+        else:
+            test_summary = "未执行测试用例"
+
+        # 版本信息
+        version_info = f"目标对象版本: v{task_spec.target_object_id.split(':')[-1] if ':' in task_spec.target_object_id else task_spec.target_object_id} -> v{new_version}"
+
+        # 生成结论摘要
+        if overall == "pass":
+            conclusion_summary = f"本次迭代已完成全部六阶段闭环流程, 变更已通过 A/B 测试和部署验证, 新版本成功切换上线。"
+        elif overall == "rolled_back":
+            conclusion_summary = f"本次迭代已完成需求分析、沙箱开发和测试阶段, 但热切换过程中出现异常, 系统已自动回滚至上一版本, 建议排查原因后重新发起迭代。"
+        elif overall == "deployed":
+            conclusion_summary = f"本次迭代已完成部署验证, 新版本已部署至沙箱环境, 但热切换阶段尚未完成, 建议人工检查后继续。"
+        else:
+            conclusion_summary = f"本次迭代未能通过部署验证阶段, 变更未上线, 服务保持原有版本运行。"
+
+        return {
+            "overall": overall,
+            "overall_text": overall_text,
+            "test_summary": test_summary,
+            "version_info": version_info,
+            "summary": conclusion_summary,
+            "verdict": verdict,
+            "verdict_label": _verdict_label(verdict),
+            "verdict_icon": _verdict_icon(verdict),
+        }
+
+    @staticmethod
+    def _change_type_label(change_type: str) -> str:
+        """变更类型中文标签."""
+        labels = {
+            "bugfix": "Bug修复",
+            "feature": "新功能",
+            "refactor": "重构",
+            "optimization": "优化",
+        }
+        return labels.get(change_type, change_type)
 
     # ---- JSON ----
 
@@ -248,6 +429,51 @@ class Reporter:
         lines.append(f"**判定**: {icon} {label}")
         lines.append("")
 
+        # 迭代过程
+        lines.append("## 📋 迭代过程")
+        lines.append("")
+        process_phases = data.get("process_summary", [])
+        for phase in process_phases:
+            ph_icon = phase.get("icon", "")
+            ph = phase.get("phase", "")
+            detail = phase.get("detail", "")
+            lines.append(f"- **{ph_icon} {ph}**: {detail}")
+        lines.append("")
+
+        # 测试统计
+        total = data["total_cases"]
+        passed = data["passed_cases"]
+        failed = data["failed_cases"]
+        regression = data["regression_count"]
+        if total > 0:
+            lines.append(f"**测试统计**: {passed}/{total} 通过, {failed} 失败"
+                         + (f", {regression} 回归" if regression > 0 else ""))
+            lines.append("")
+
+        # 结论
+        lines.append("## 📊 结论")
+        lines.append("")
+        conclusion = data.get("conclusion", {})
+        overall_text = conclusion.get("overall_text", "")
+        if overall_text:
+            lines.append(overall_text)
+            lines.append("")
+
+        conclusion_summary = conclusion.get("summary", "")
+        if conclusion_summary:
+            lines.append(conclusion_summary)
+            lines.append("")
+
+        version_info = conclusion.get("version_info", "")
+        if version_info:
+            lines.append(f"**版本**: {version_info}")
+            lines.append("")
+
+        test_conclusion = conclusion.get("test_summary", "")
+        if test_conclusion:
+            lines.append(f"**测试**: {test_conclusion}")
+            lines.append("")
+
         # 回滚点
         rollback = data["rollback_point"]
         if rollback:
@@ -263,10 +489,10 @@ class Reporter:
                 lines.append(f"- **{key}**: {value}")
             lines.append("")
 
-        # 摘要
+        # 补充说明
         summary = data["summary"]
         if summary:
-            lines.append("## 摘要")
+            lines.append("## 📝 补充说明")
             lines.append("")
             lines.append(summary)
             lines.append("")
@@ -398,6 +624,46 @@ class Reporter:
             <code>{escape(rollback)}</code>
         </div>"""
 
+        # 迭代过程
+        process_phases = data.get("process_summary", [])
+        process_section = ""
+        if process_phases:
+            phase_items = "".join(
+                f"<li style='padding:6px 0;'><strong>{escape(p.get('icon',''))} {escape(p.get('phase',''))}</strong>: {escape(p.get('detail',''))}</li>"
+                for p in process_phases
+            )
+            process_section = f"""
+        <section>
+            <h2>📋 迭代过程</h2>
+            <ul style="list-style:none;padding-left:0;">{phase_items}</ul>
+        </section>"""
+
+        # 结论
+        conclusion = data.get("conclusion", {})
+        conclusion_section = ""
+        if conclusion:
+            overall_text = conclusion.get("overall_text", "")
+            conclusion_summary = conclusion.get("summary", "")
+            version_info = conclusion.get("version_info", "")
+            test_summary = conclusion.get("test_summary", "")
+            conclusion_parts = ""
+            if overall_text:
+                conclusion_parts += f"<p style='font-size:1.05rem;font-weight:600;'>{escape(overall_text)}</p>"
+            if conclusion_summary:
+                conclusion_parts += f"<p style='margin-top:8px;'>{escape(conclusion_summary)}</p>"
+            if version_info or test_summary:
+                conclusion_parts += "<ul style='margin-top:8px;padding-left:20px;'>"
+                if version_info:
+                    conclusion_parts += f"<li><strong>版本</strong>: {escape(version_info)}</li>"
+                if test_summary:
+                    conclusion_parts += f"<li><strong>测试</strong>: {escape(test_summary)}</li>"
+                conclusion_parts += "</ul>"
+            conclusion_section = f"""
+        <section>
+            <h2>📊 结论</h2>
+            {conclusion_parts}
+        </section>"""
+
         # 部署信息
         deploy = data["deploy_result"]
         deploy_section = ""
@@ -412,13 +678,13 @@ class Reporter:
             <dl class="info-list">{deploy_items}</dl>
         </section>"""
 
-        # 摘要
+        # 补充说明
         summary = data["summary"]
         summary_section = ""
         if summary:
             summary_section = f"""
         <section>
-            <h2>📝 摘要</h2>
+            <h2>📝 补充说明</h2>
             <p>{escape(summary)}</p>
         </section>"""
 
@@ -515,7 +781,7 @@ class Reporter:
             {icon} 判定: {escape(label)}
         </div>
     </header>
-    {rollback_section}{changes_section}{test_section}{deploy_section}{summary_section}
+    {rollback_section}{changes_section}{test_section}{process_section}{conclusion_section}{deploy_section}{summary_section}
     <footer>生成时间: {escape(generated_at)} | ILA Agent</footer>
 </div>
 </body>

@@ -47,7 +47,7 @@ if (Test-Path $InstallDir) {
     git clone -b $Branch $RepoUrl $InstallDir
 }
 Set-Location $InstallDir
-pip install -e ".[dev]" 2>&1 | Out-Null
+pip install -e ".[dev]"
 Write-Host "  安装完成" -ForegroundColor Green
 
 # 4. 创建默认配置

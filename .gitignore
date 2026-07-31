@@ -1,8 +1,16 @@
+# ILA
 __pycache__/
 *.pyc
+*.pyo
+.ila-backup-*.tar.gz
+.ila/snapshots/
+.ila/reports/
+.ila/staging/
 *.egg-info/
-.pytest_cache/
-*.egg
-build/
 dist/
-.ila/
+build/
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
+Thumbs.db

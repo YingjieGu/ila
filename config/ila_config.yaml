@@ -10,8 +10,9 @@ sandbox:
   default_level: tempdir
   framework: codex
   workspace_root: /tmp
-  codex_model: glm-5.2
+  codex_model: deepseek-v4-pro
   codex_sandbox_mode: bypass
+  timeout: 300
 
 adapters:
   hermes:
@@ -19,8 +20,16 @@ adapters:
     hermes_home: ~/.hermes
     staging_profile: ila-test
   openclaw:
-    enabled: false
+    enabled: true
     openclaw_home: ~/.openclaw
+  workbuddy:
+    enabled: false
+    workbuddy_home: ~/.workbuddy
+  ila:
+    enabled: true
+    project_root: ~/myprojects/ila
+    dashboard_port: 9527
+    staging_port: 9528
   custom:
     enabled: false
 
@@ -32,6 +41,9 @@ test:
 report:
   output_dir: ~/.ila/reports
   format: [json, markdown, html]
+
+dashboard:
+  theme: dark  # 页面主题: dark(暗色) | light(亮色) | ocean(海洋) | sepia(复古)
 
 self_evolve:
   enabled: true

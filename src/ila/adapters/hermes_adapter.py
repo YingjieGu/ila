@@ -347,8 +347,13 @@ class HermesAdapter(PlatformAdapter):
 
     # ---- Staging 与调用 ----
 
-    def deploy_to_staging(self, obj: ManagedObject, sandbox_path: str) -> str:
-        """通过 ila-test profile 创建 staging 环境."""
+    def deploy_to_staging(self, obj: ManagedObject, sandbox_path: str) -> str | dict:
+        """通过 ila-test profile 创建 staging 环境.
+
+        Returns:
+            若对象含 HTML 文件则返回 dict {staging_id, staging_url, html_file}，
+            否则返回 staging_id 字符串（向后兼容）。
+        """
         staging_id = f"ila-staging-{obj.name}-{int(time.time())}"
 
         # 确保 staging profile 存在
@@ -362,6 +367,7 @@ class HermesAdapter(PlatformAdapter):
             pass  # profile 可能已存在
 
         # 将沙箱新版本复制到 staging profile
+        staging_path = None
         if obj.object_type == "skill":
             staging_path = os.path.join(
                 self.hermes_home, "profiles", self.staging_profile, "skills", obj.name
@@ -371,7 +377,34 @@ class HermesAdapter(PlatformAdapter):
             shutil.copytree(sandbox_path, staging_path)
 
         logger.info("Staging 部署完成: %s -> %s", obj.name, staging_id)
+
+        # 检测 HTML 文件，生成 staging URL
+        html_files = self._find_html_files(staging_path) if staging_path else []
+        if html_files:
+            main_html = html_files[0]  # 取第一个 HTML 作为主页面
+            # staging URL 指向 Dashboard 的静态文件路由 (9527)
+            staging_url = (
+                f"http://localhost:9527/staging/{obj.object_type}/{obj.name}/{main_html}"
+            )
+            logger.info("检测到 HTML 文件，staging URL: %s", staging_url)
+            return {
+                "staging_id": staging_id,
+                "staging_url": staging_url,
+                "html_file": main_html,
+            }
+
         return staging_id
+
+    @staticmethod
+    def _find_html_files(directory: str) -> list[str]:
+        """在目录中查找 HTML 文件（仅顶层，按名称排序）."""
+        if not os.path.isdir(directory):
+            return []
+        html_files = sorted(
+            f for f in os.listdir(directory)
+            if f.endswith(('.html', '.htm')) and os.path.isfile(os.path.join(directory, f))
+        )
+        return html_files
 
     def invoke_object(self, obj: ManagedObject, test_input: dict) -> dict[str, Any]:
         """调用线上对象 — 轻量级模式.

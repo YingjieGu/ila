@@ -58,7 +58,7 @@ class PlatformAdapter(ABC):
         """
 
     @abstractmethod
-    def deploy_to_staging(self, obj: ManagedObject, sandbox_path: str) -> str:
+    def deploy_to_staging(self, obj: ManagedObject, sandbox_path: str) -> str | dict:
         """将沙箱中的新版本部署到准生产/测试环境.
 
         Args:
@@ -66,7 +66,8 @@ class PlatformAdapter(ABC):
             sandbox_path: 沙箱工作区路径
 
         Returns:
-            staging 实例标识 (staging_id)
+            staging 实例标识 (staging_id)，或包含 staging_url 的 dict
+            (对于含 Web 页面的对象)
         """
 
     @abstractmethod

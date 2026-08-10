@@ -378,7 +378,9 @@ class IlaSelfAdapter(PlatformAdapter):
         staging_id = f"ila-staging-{int(time.time())}"
 
         # 1. 备份旧文件
-        backup_dir = f"/tmp/ila-staging-backup-{int(time.time())}"
+        backup_dir = os.path.join(
+            tempfile.gettempdir(), f"ila-staging-backup-{int(time.time())}"
+        )
         os.makedirs(backup_dir, exist_ok=True)
 
         # 备份 src/ila/

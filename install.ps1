@@ -51,7 +51,7 @@ if (Test-Path $InstallDir) {
     git clone -b $Branch $RepoUrl $InstallDir
 }
 Set-Location $InstallDir
-pip install -e ".[dev]"
+pip install -e ".[dev,dashboard]"
 Write-Host "  Install complete" -ForegroundColor Green
 
 # 4. Create default config
@@ -73,7 +73,8 @@ adapters:
   openclaw:
     enabled: false
   workbuddy:
-    enabled: false
+    enabled: true
+    workbuddy_home: $($env:USERPROFILE -replace '\\','/')/.workbuddy
   ila:
     enabled: true
     project_root: $($InstallDir -replace '\\','/')

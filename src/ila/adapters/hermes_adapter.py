@@ -96,7 +96,7 @@ class HermesAdapter(PlatformAdapter):
             return objects
         try:
             import yaml
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             mcp_servers = config.get("mcp", {}).get("servers", {})
             if isinstance(mcp_servers, dict):
@@ -158,7 +158,7 @@ class HermesAdapter(PlatformAdapter):
         if not os.path.exists(skill_md):
             return "unknown"
         try:
-            with open(skill_md) as f:
+            with open(skill_md, encoding="utf-8") as f:
                 content = f.read(2000)
             # 解析 YAML frontmatter
             if content.startswith("---"):
@@ -197,7 +197,7 @@ class HermesAdapter(PlatformAdapter):
             with tarfile.open(snapshot_path, "w:gz") as tar:
                 # 添加一个 info 文件
                 info_path = os.path.join(snapshot_dir, f"{obj.name}-info.json")
-                with open(info_path, "w") as f:
+                with open(info_path, "w", encoding="utf-8") as f:
                     json.dump(obj.to_dict(), f, indent=2)
                 tar.add(info_path, arcname="object-info.json")
                 os.unlink(info_path)
@@ -288,7 +288,7 @@ class HermesAdapter(PlatformAdapter):
                 if not os.path.exists(skill_md):
                     logger.warning("重载验证失败: SKILL.md 不存在")
                     return False
-                with open(skill_md) as f:
+                with open(skill_md, encoding="utf-8") as f:
                     content = f.read(500)
                 if not content.startswith("---"):
                     logger.warning("重载验证失败: SKILL.md 缺少 frontmatter")
@@ -318,7 +318,7 @@ class HermesAdapter(PlatformAdapter):
                 skill_md = os.path.join(obj.path, "SKILL.md")
                 if not os.path.exists(skill_md):
                     return False
-                with open(skill_md) as f:
+                with open(skill_md, encoding="utf-8") as f:
                     content = f.read(500)
                 if not content.startswith("---"):
                     return False
@@ -422,7 +422,7 @@ class HermesAdapter(PlatformAdapter):
                 file_path = os.path.join(obj.path, check_file)
                 if not os.path.exists(file_path):
                     return {"output": "", "exit_code": 1, "error": f"文件不存在: {check_file}"}
-                with open(file_path) as f:
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
                 if expect_contains and expect_contains not in content:
                     return {
@@ -459,7 +459,7 @@ class HermesAdapter(PlatformAdapter):
             file_path = os.path.join(staging_skill_path, check_file)
             if not os.path.exists(file_path):
                 return {"output": "", "exit_code": 1, "error": f"staging 文件不存在: {check_file}"}
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             if expect_contains and expect_contains not in content:
                 return {
@@ -509,7 +509,7 @@ class HermesAdapter(PlatformAdapter):
                 issues.append("新版本缺少 SKILL.md 文件")
             else:
                 # 检查 frontmatter 格式
-                with open(new_skill_md) as f:
+                with open(new_skill_md, encoding="utf-8") as f:
                     content = f.read(500)
                 if not content.startswith("---"):
                     warnings.append("SKILL.md 缺少 YAML frontmatter")

@@ -16,6 +16,16 @@ from ila.adapters.registry import AdapterRegistry
 from ila.core.orchestrator import ILAOrchestrator
 
 
+def _ensure_utf8_stdio() -> None:
+    """Windows GBK 控制台下强制 UTF-8 输出，避免中文 print 抛 UnicodeEncodeError."""
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def load_config(config_path: str | None = None) -> dict[str, Any]:
     """加载 ILA 配置."""
 
@@ -31,7 +41,7 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
                 break
 
     if config_path and os.path.exists(config_path):
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 
@@ -603,6 +613,7 @@ def cmd_list(args, config, orchestrator):
 
 def main():
     """CLI 主入口."""
+    _ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         prog="ila",
         description="ILA: Iteration Loop Agent — 平台无关的敏捷迭代闭环智能体",

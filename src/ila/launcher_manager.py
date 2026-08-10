@@ -52,7 +52,7 @@ class LauncherManager:
         self.launcher_log.parent.mkdir(parents=True, exist_ok=True)
 
         # 打开日志文件
-        log_fp = open(str(self.launcher_log), "a")
+        log_fp = open(str(self.launcher_log), "a", encoding="utf-8")
 
         # 传递 cmd_dir 给子进程
         env = os.environ.copy()

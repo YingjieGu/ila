@@ -112,7 +112,7 @@ class OpenClawAdapter(PlatformAdapter):
             file_path = os.path.join(obj.path, check_file)
             if not os.path.exists(file_path):
                 return {"output": "", "exit_code": 1, "error": f"文件不存在: {check_file}"}
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             if expect_contains and expect_contains not in content:
                 return {"output": content[:200], "exit_code": 0, "error": f"未找到: {expect_contains}"}
@@ -129,7 +129,7 @@ class OpenClawAdapter(PlatformAdapter):
             file_path = os.path.join(staging_path, check_file)
             if not os.path.exists(file_path):
                 return {"output": "", "exit_code": 1, "error": "staging 文件不存在"}
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 return {"output": f.read()[:200], "exit_code": 0, "error": ""}
         return {"output": "OK", "exit_code": 0}
 

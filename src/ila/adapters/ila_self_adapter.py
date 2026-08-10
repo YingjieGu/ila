@@ -123,7 +123,7 @@ class IlaSelfAdapter(PlatformAdapter):
         version_file = os.path.join(self.src_dir, "VERSION")
         if os.path.exists(version_file):
             try:
-                with open(version_file) as f:
+                with open(version_file, encoding="utf-8") as f:
                     return f.read().strip()
             except Exception:
                 pass
@@ -132,7 +132,7 @@ class IlaSelfAdapter(PlatformAdapter):
         init_file = os.path.join(self.src_dir, "__init__.py")
         if os.path.exists(init_file):
             try:
-                with open(init_file) as f:
+                with open(init_file, encoding="utf-8") as f:
                     content = f.read(2000)
                 match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
                 if match:
@@ -144,7 +144,7 @@ class IlaSelfAdapter(PlatformAdapter):
         pyproject = os.path.join(self.project_root, "pyproject.toml")
         if os.path.exists(pyproject):
             try:
-                with open(pyproject) as f:
+                with open(pyproject, encoding="utf-8") as f:
                     content = f.read(2000)
                 match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
                 if match:
@@ -227,7 +227,7 @@ class IlaSelfAdapter(PlatformAdapter):
         """写入验证模式标识文件，始终写入（即使无改动）。"""
         try:
             os.makedirs(os.path.dirname(_VERIFICATION_MODE_FILE), exist_ok=True)
-            with open(_VERIFICATION_MODE_FILE, "w") as f:
+            with open(_VERIFICATION_MODE_FILE, "w", encoding="utf-8") as f:
                 json.dump({
                     "enabled": True,
                     "modified_modules": modified_modules,
@@ -251,7 +251,7 @@ class IlaSelfAdapter(PlatformAdapter):
         """静态方法: 读取验证模式文件，供 api.py 调用."""
         try:
             if os.path.exists(_VERIFICATION_MODE_FILE):
-                with open(_VERIFICATION_MODE_FILE) as f:
+                with open(_VERIFICATION_MODE_FILE, encoding="utf-8") as f:
                     return json.load(f)
         except Exception:
             pass
@@ -295,7 +295,7 @@ class IlaSelfAdapter(PlatformAdapter):
 
             # 写入元信息
             meta_path = snapshot_path.replace(".tar.gz", ".meta.json")
-            with open(meta_path, "w") as f:
+            with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump({
                     "created_at": timestamp,
                     "object_id": obj.object_id,
@@ -571,7 +571,7 @@ class IlaSelfAdapter(PlatformAdapter):
                     "output": "", "exit_code": 1,
                     "error": f"文件不存在: {check_file}",
                 }
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             expect_contains = test_input.get("expect_contains", "")
             if expect_contains and expect_contains not in content:
@@ -641,7 +641,7 @@ class IlaSelfAdapter(PlatformAdapter):
                     "output": "", "exit_code": 1,
                     "error": f"文件不存在: {check_file}",
                 }
-            with open(file_path) as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
             expect_contains = test_input.get("expect_contains", "")
             if expect_contains and expect_contains not in content:
@@ -1193,8 +1193,8 @@ class IlaSelfAdapter(PlatformAdapter):
             old_file = os.path.join(self.src_dir, rel_path)
             new_file = os.path.join(sandbox_path, rel_path)
             if os.path.exists(old_file) and os.path.exists(new_file):
-                old_content = open(old_file).read()
-                new_content = open(new_file).read()
+                old_content = open(old_file, encoding="utf-8").read()
+                new_content = open(new_file, encoding="utf-8").read()
                 if old_content != new_content:
                     warnings.append(
                         f"受保护文件被修改: {rel_path} "
@@ -1211,7 +1211,7 @@ class IlaSelfAdapter(PlatformAdapter):
     def _save_staging_info(self, staging_id: str, info: dict) -> None:
         """保存 staging 信息到文件."""
         info_path = os.path.join(_STAGING_DIR, f"{staging_id}.json")
-        with open(info_path, "w") as f:
+        with open(info_path, "w", encoding="utf-8") as f:
             json.dump(info, f, indent=2)
 
     def _load_staging_info(self, staging_id: str) -> dict | None:
@@ -1220,7 +1220,7 @@ class IlaSelfAdapter(PlatformAdapter):
         if not os.path.exists(info_path):
             return None
         try:
-            with open(info_path) as f:
+            with open(info_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.warning("加载 staging 信息失败: %s", e)

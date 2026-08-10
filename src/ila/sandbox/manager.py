@@ -150,7 +150,7 @@ class SandboxManager:
         if not os.path.exists(meta_path):
             return {"path": sandbox_path, "exists": os.path.exists(sandbox_path)}
         import json
-        with open(meta_path) as f:
+        with open(meta_path, encoding="utf-8") as f:
             return json.load(f)
 
     # ---- tempdir 模式 ----
@@ -283,5 +283,5 @@ class SandboxManager:
         """将沙箱元信息写入沙箱目录."""
         import json
         meta_path = os.path.join(sandbox_path, self.META_FILENAME)
-        with open(meta_path, "w") as f:
+        with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2, ensure_ascii=False)

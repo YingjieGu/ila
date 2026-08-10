@@ -138,7 +138,7 @@ class Developer:
 {task_spec.current_version}
 """
         agents_path = os.path.join(sandbox_path, "AGENTS.md")
-        with open(agents_path, "w") as f:
+        with open(agents_path, "w", encoding="utf-8") as f:
             f.write(agents_md)
         logger.info("任务规格已注入: %s", agents_path)
 

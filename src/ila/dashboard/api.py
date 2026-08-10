@@ -504,7 +504,7 @@ def create_app(config: dict[str, Any], sandbox_manager: Any = None, port: int = 
         for ext in ("json", "md", "html"):
             path = os.path.join(report_dir, f"{task_id}.{ext}")
             if os.path.exists(path):
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     result[ext] = f.read()
         return result if result else {"error": "报告不存在"}
 
@@ -520,7 +520,7 @@ def create_app(config: dict[str, Any], sandbox_manager: Any = None, port: int = 
                 if fname.endswith(".json"):
                     task_id = fname.rsplit(".", 1)[0]
                     path = os.path.join(report_dir, fname)
-                    with open(path) as f:
+                    with open(path, encoding="utf-8") as f:
                         data = json.load(f)
                     obj = data.get("object", {})
                     conclusion = data.get("conclusion", {})
@@ -571,7 +571,7 @@ def create_app(config: dict[str, Any], sandbox_manager: Any = None, port: int = 
         """返回管控面板 HTML."""
         html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
         if os.path.exists(html_path):
-            with open(html_path) as f:
+            with open(html_path, encoding="utf-8") as f:
                 return HTMLResponse(f.read())
         return HTMLResponse("<h1>ILA Dashboard</h1><p>dashboard.html not found</p>")
 

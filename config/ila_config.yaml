@@ -23,7 +23,7 @@ adapters:
     enabled: true
     openclaw_home: ~/.openclaw
   workbuddy:
-    enabled: false
+    enabled: true
     workbuddy_home: ~/.workbuddy
   ila:
     enabled: true

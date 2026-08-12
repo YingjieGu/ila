@@ -93,8 +93,43 @@ sandbox:
     Write-Host "  Config exists, skipped" -ForegroundColor Gray
 }
 
-# 5. Done
-Write-Host "`n[5/5] Install complete!" -ForegroundColor Green
+# 5. Deploy ILA skill to platforms
+Write-Host "`n[5/6] Deploying ILA skill to platforms..." -ForegroundColor Yellow
+$SkillSource = Join-Path $InstallDir "skills\ila\SKILL.md"
+if (Test-Path $SkillSource) {
+    # Hermes
+    $hermesSkillDir = "$env:USERPROFILE\.hermes\skills\ila"
+    if (-not (Test-Path $hermesSkillDir)) { New-Item -ItemType Directory -Path $hermesSkillDir -Force | Out-Null }
+    Copy-Item $SkillSource "$hermesSkillDir\SKILL.md" -Force
+    Write-Host "  ✓ Hermes:    $hermesSkillDir\SKILL.md" -ForegroundColor Green
+
+    # OpenClaw
+    $openclawSkillDir = "$env:USERPROFILE\.openclaw\skills\ila"
+    if (-not (Test-Path $openclawSkillDir)) { New-Item -ItemType Directory -Path $openclawSkillDir -Force | Out-Null }
+    Copy-Item $SkillSource "$openclawSkillDir\SKILL.md" -Force
+    Write-Host "  ✓ OpenClaw:  $openclawSkillDir\SKILL.md" -ForegroundColor Green
+
+    # WorkBuddy
+    $workbuddySkillDir = "$env:USERPROFILE\.workbuddy\skills\ila"
+    if (-not (Test-Path $workbuddySkillDir)) { New-Item -ItemType Directory -Path $workbuddySkillDir -Force | Out-Null }
+    Copy-Item $SkillSource "$workbuddySkillDir\SKILL.md" -Force
+    Write-Host "  ✓ WorkBuddy: $workbuddySkillDir\SKILL.md" -ForegroundColor Green
+
+    # OpenCode (如存在 skills 目录)
+    $opencodeSkillDir = "$env:USERPROFILE\.opencode\skills\ila"
+    if (Test-Path "$env:USERPROFILE\.opencode") {
+        if (-not (Test-Path $opencodeSkillDir)) { New-Item -ItemType Directory -Path $opencodeSkillDir -Force | Out-Null }
+        Copy-Item $SkillSource "$opencodeSkillDir\SKILL.md" -Force
+        Write-Host "  ✓ OpenCode:  $opencodeSkillDir\SKILL.md" -ForegroundColor Green
+    } else {
+        Write-Host "  - OpenCode:  未安装，跳过" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "  ⚠️  未找到 $SkillSource，跳过 skill 部署" -ForegroundColor Yellow
+}
+
+# 6. Done
+Write-Host "`n[6/6] Install complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Start Dashboard:" -ForegroundColor Cyan
 Write-Host "    cd $InstallDir" -ForegroundColor White
@@ -107,5 +142,4 @@ Write-Host ""
 Write-Host "  Enable platform adapters:" -ForegroundColor Cyan
 Write-Host "    Edit $ConfigFile, set enabled: true for your platform" -ForegroundColor White
 Write-Host ""
-Write-Host "  Connect WorkBuddy:" -ForegroundColor Cyan
-Write-Host "    Create ila/SKILL.md under your WorkBuddy skills directory" -ForegroundColor White
+Write-Host "  ILA skill 已自动部署到 Hermes / OpenClaw / WorkBuddy 技能目录" -ForegroundColor Cyan

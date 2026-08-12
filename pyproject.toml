@@ -7,7 +7,7 @@ name = "ila-agent"
 version = "1.0.0"
 description = "Iteration Loop Agent - 平台无关的敏捷迭代闭环智能体"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [{name = "ILA Project"}]
 keywords = ["agent", "ci-cd", "iteration", "hot-swap", "sandbox", "codex"]

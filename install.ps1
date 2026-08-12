@@ -15,14 +15,14 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 Write-Host "=== ILA Installer ===" -ForegroundColor Cyan
 
-# 1. Check Python 3.10+
+# 1. Check Python 3.8+
 Write-Host "`n[1/5] Checking Python..." -ForegroundColor Yellow
 try {
     $pyVersion = python --version 2>&1
     Write-Host "  $pyVersion" -ForegroundColor Green
-    python -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)"
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)"
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERROR: Python 3.10+ required. Install from https://www.python.org/downloads/" -ForegroundColor Red
+        Write-Host "  ERROR: Python 3.8+ required. Install from https://www.python.org/downloads/" -ForegroundColor Red
         exit 1
     }
 } catch {

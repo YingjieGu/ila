@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -60,7 +61,7 @@ class LauncherManager:
 
         try:
             self._proc = subprocess.Popen(
-                ["python3", "-m", launcher_module],
+                [sys.executable, "-m", launcher_module],
                 stdout=log_fp,
                 stderr=log_fp,
                 stdin=subprocess.DEVNULL,

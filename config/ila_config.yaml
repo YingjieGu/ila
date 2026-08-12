@@ -9,7 +9,8 @@ ila:
 sandbox:
   default_level: tempdir
   framework: codex
-  workspace_root: /tmp
+  # workspace_root 缺省时自动使用系统临时目录 (tempfile.gettempdir())
+  workspace_root: null
   codex_model: deepseek-v4-pro
   codex_sandbox_mode: bypass
   timeout: 300

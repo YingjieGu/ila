@@ -11,7 +11,7 @@
     "action": "restart",
     "name": "ila-dashboard",
     "port": 9527,
-    "cmd": ["python3", "-m", "ila.cli", "dashboard", "--port", "9527", ...],
+    "cmd": [sys.executable, "-m", "ila.cli", "dashboard", "--port", "9527", ...],
     "health_check_url": "http://127.0.0.1:9527/api/status",
     "health_check_timeout": 30,
     "staging_port": 9528,

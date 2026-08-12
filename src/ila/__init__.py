@@ -3,7 +3,7 @@
 # SKILL.md: 技能配置文件格式，定义技能元数据与行为规范
 from __future__ import annotations
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 # 运行时版本: 优先从注册表读取最新已上线版本，fallback 到静态 __version__
 _runtime_version: str | None = None

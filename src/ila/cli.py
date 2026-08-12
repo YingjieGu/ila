@@ -93,7 +93,8 @@ def init_adapters(config: dict[str, Any]) -> None:
         try:
             from ila.adapters.ila_self_adapter import IlaSelfAdapter
             adapter = IlaSelfAdapter(
-                project_root=ila_cfg.get("project_root", "~/myprojects/ila"),
+                # project_root 未配置时自动检测 (基于 __file__), 兼容任意安装位置
+                project_root=ila_cfg.get("project_root"),
                 dashboard_port=ila_cfg.get("dashboard_port", 9527),
                 staging_port=ila_cfg.get("staging_port", 9528),
             )
@@ -112,7 +113,7 @@ def init_sandbox_manager(config: dict[str, Any]) -> Any:
     from ila.sandbox.manager import SandboxManager
     sandbox_cfg = config.get("sandbox", {})
     return SandboxManager(
-        workspace_root=sandbox_cfg.get("workspace_root", "/tmp"),
+        workspace_root=sandbox_cfg.get("workspace_root"),
     )
 
 

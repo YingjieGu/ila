@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ila-agent"
-version = "1.0.0"
+version = "1.6.0"
 description = "Iteration Loop Agent - 平台无关的敏捷迭代闭环智能体"
 readme = "README.md"
 requires-python = ">=3.8"

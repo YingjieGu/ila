@@ -27,7 +27,7 @@ import time
 from typing import Any
 
 from ila.adapters.base import PlatformAdapter
-from ila.launcher_platform import health_check, wait_port_free
+from ila.launcher_platform import find_port_pids, health_check, kill_port, wait_port_free
 from ila.models.managed_object import ManagedObject
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 
 # Staging 信息存储路径
 _STAGING_DIR = os.path.expanduser("~/.ila/staging")
-# ILA 项目根目录
-_ILA_PROJECT = os.path.expanduser("~/myprojects/ila")
+# ILA 项目根目录: 通过 __file__ 自动推导, 兼容 Linux/macOS/Windows 任意安装位置
+_ILA_PROJECT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 # ILA 源码目录
 _ILA_SRC = os.path.join(_ILA_PROJECT, "src", "ila")
 # ILA 配置目录
@@ -425,7 +425,7 @@ class IlaSelfAdapter(PlatformAdapter):
 
         try:
             process = subprocess.Popen(
-                ["python3", "-m", "ila.cli", "dashboard",
+                [sys.executable, "-m", "ila.cli", "dashboard",
                  "--port", str(new_port),
                  "--host", "127.0.0.1"],
                 cwd=self.project_root,
@@ -434,8 +434,8 @@ class IlaSelfAdapter(PlatformAdapter):
                 stderr=subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            # 尝试用 python3.12 或其他版本
-            for py in ["python3.12", "python3.11", "python3.10", "python"]:
+            # 回退: 尝试常见 Python 命令名 (Windows 无 python3)
+            for py in [sys.executable, "python3.12", "python3.11", "python3.10", "python3", "python"]:
                 try:
                     process = subprocess.Popen(
                         [py, "-m", "ila.cli", "dashboard",
@@ -909,7 +909,7 @@ class IlaSelfAdapter(PlatformAdapter):
                 name="ila-dashboard",
                 port=self.dashboard_port,
                 cmd=[
-                    "python3", "-m", "ila.cli", "dashboard",
+                    sys.executable, "-m", "ila.cli", "dashboard",
                     "--port", str(self.dashboard_port),
                     "--host", "0.0.0.0",
                 ],
@@ -931,22 +931,16 @@ class IlaSelfAdapter(PlatformAdapter):
             return {"status": "error", "reason": f"委托 Launcher 失败: {e}"}
 
     def _kill_port_processes(self, port: int) -> None:
-        """强制杀死指定端口上的所有进程."""
-        try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                for pid_str in result.stdout.strip().split():
-                    try:
-                        pid = int(pid_str)
-                        os.kill(pid, signal.SIGKILL)
-                        logger.warning("强制清理端口 %s 上的进程: pid=%s", port, pid)
-                    except (ProcessLookupError, ValueError, OSError):
-                        pass
-        except Exception:
-            pass
+        """强制杀死指定端口上的所有进程 (跨平台)."""
+        pids = find_port_pids(port)
+        for pid in pids:
+            if pid == os.getpid():
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+                logger.warning("强制清理端口 %s 上的进程: pid=%s", port, pid)
+            except (ProcessLookupError, OSError):
+                pass
 
     def _stop_current_dashboard(self, skip_pids: set[int] | None = None) -> None:
         """停止当前的 ILA dashboard 进程.
@@ -960,13 +954,9 @@ class IlaSelfAdapter(PlatformAdapter):
             skip_pids = set()
         skip_pids.add(current_pid)
         try:
-            # 通过 lsof 找到进程
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                pids = [int(p) for p in result.stdout.strip().split()]
+            # 通过跨平台端口查找获取进程 PID
+            pids = find_port_pids(port)
+            if pids:
                 for pid in pids:
                     if pid in skip_pids:
                         logger.info("跳过进程 %d (保留代理/当前进程)", pid)
@@ -1007,13 +997,9 @@ class IlaSelfAdapter(PlatformAdapter):
             logger.warning("停止旧进程失败: %s", e)
 
     def _is_process_running(self, port: int) -> bool:
-        """检查指定端口是否有进程在运行."""
+        """检查指定端口是否有进程在运行 (跨平台)."""
         try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-                capture_output=True, text=True, timeout=5,
-            )
-            return result.returncode == 0 and result.stdout.strip() != ""
+            return len(find_port_pids(port)) > 0
         except Exception:
             return False
 
@@ -1023,7 +1009,7 @@ class IlaSelfAdapter(PlatformAdapter):
         self._kill_port_processes(port)
         try:
             proc = subprocess.Popen(
-                ["python3", "-m", "ila.cli", "dashboard",
+                [sys.executable, "-m", "ila.cli", "dashboard",
                  "--port", str(port), "--host", "127.0.0.1"],
                 cwd=self.project_root,
                 stdout=subprocess.DEVNULL,
@@ -1035,7 +1021,14 @@ class IlaSelfAdapter(PlatformAdapter):
             return None
 
     def _has_root(self) -> bool:
-        """检查是否有 root 权限."""
+        """检查是否有 root/管理员权限 (跨平台)."""
+        if sys.platform == "win32":
+            # Windows: 用 ctypes 检查是否以管理员身份运行
+            try:
+                import ctypes
+                return bool(ctypes.windll.shell32.IsUserAnAdmin())
+            except Exception:
+                return False
         try:
             return os.geteuid() == 0
         except AttributeError:
@@ -1250,19 +1243,11 @@ class IlaSelfAdapter(PlatformAdapter):
             if backup_dir and os.path.isdir(backup_dir):
                 shutil.rmtree(backup_dir, ignore_errors=True)
 
-        # 强制清理 staging 端口上的任何残留进程
+        # 强制清理 staging 端口上的任何残留进程 (跨平台)
         port = self.staging_port
-        try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                for pid in result.stdout.strip().split():
-                    try:
-                        os.kill(int(pid), signal.SIGKILL)
-                        logger.warning("强制清理端口 %s 上的残留进程: pid=%s", port, pid)
-                    except (ProcessLookupError, ValueError):
-                        pass
-        except Exception:
-            pass
+        for pid in find_port_pids(port):
+            try:
+                os.kill(pid, signal.SIGKILL)
+                logger.warning("强制清理端口 %s 上的残留进程: pid=%s", port, pid)
+            except (ProcessLookupError, OSError):
+                pass

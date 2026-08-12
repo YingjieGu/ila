@@ -34,8 +34,8 @@ class SandboxManager:
 
     META_FILENAME = ".ila-sandbox.json"
 
-    def __init__(self, workspace_root: str = "/tmp") -> None:
-        self.workspace_root = workspace_root
+    def __init__(self, workspace_root: str | None = None) -> None:
+        self.workspace_root = workspace_root or tempfile.gettempdir()
         os.makedirs(self.workspace_root, exist_ok=True)
 
     def create_sandbox(self, obj: ManagedObject, level: str = "tempdir") -> str:

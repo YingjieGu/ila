@@ -287,6 +287,17 @@ def update_object_version(object_id: str, version: str) -> bool:
 # ── 平台私有 ──────────────────────────────────────────────────────────
 
 
+def find_port_pids(port: int) -> list[int]:
+    """跨平台: 查找占用指定端口的进程 PID 列表.
+
+    优先使用平台原生命令 (Windows: netstat -ano, Unix: lsof/ss/netstat).
+    Windows 中文系统输出为 GBK 编码, 自动解码, 不会崩溃.
+    """
+    if _PLATFORM == "Windows":
+        return _find_port_pids_windows(port)
+    return _find_port_pids_unix(port)
+
+
 def _find_port_pids(port: int) -> list[int]:
     """平台特定: 查找占用端口的进程 PID 列表."""
     if _PLATFORM == "Windows":
@@ -338,16 +349,18 @@ def _find_port_pids_unix(port: int) -> list[int]:
 
 
 def _find_port_pids_windows(port: int) -> list[int]:
-    """Windows: 使用 netstat 查找."""
+    """Windows: 使用 netstat 查找 (输出可能为 GBK 编码)."""
     try:
         result = subprocess.run(
             ["netstat", "-ano"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, timeout=10,
         )
         if result.returncode != 0:
             return []
-        return _parse_netstat_output(result.stdout, port)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        # Windows 中文系统输出为 GBK, 用 errors="replace" 兜底
+        output = result.stdout.decode("gbk", errors="replace")
+        return _parse_netstat_output(output, port)
+    except (FileNotFoundError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return []
 
 

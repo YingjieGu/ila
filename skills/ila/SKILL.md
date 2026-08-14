@@ -216,6 +216,25 @@ python -m ila.cli dashboard --port 9527 --host 0.0.0.0
 
 > ⚠️ PowerShell 不支持 bash 的 `2>&1 | Out-Null` 语法。见 `references/powershell-pitfalls.md`。
 
+### 版本 Tag 与回滚（Git 健壮性）
+
+每个稳定版本都会打 git tag（如 `v1.6.0`、`v1.6.1`）。当 `git pull` 因 refs/objects 损坏而异常时，用 tag 恢复到完整发布点：
+
+```powershell
+# 1. 拉取 tags 并切到指定版本
+git fetch --tags
+git reset --hard v1.6.1          # 恢复到 v1.6.1 完整发布点
+
+# 2. 若 refs/remotes/origin/master 损坏（解析到旧值），手动重建指向 tag：
+#    git update-ref refs/remotes/origin/master v1.6.1
+
+# 3. 验证
+git log --oneline -1             # 应显示 tag 对应的提交
+python -m ila.cli version        # 应显示 1.6.x
+```
+
+> 💡 发布流程已包含 tag + 打包，不依赖远程 ref 状态；GitHub 每个 tag 都有完整快照可下载（`https://github.com/YingjieGu/ila/archive/refs/tags/v1.6.1.zip`）。
+
 ### AI 平台侧安装 ILA Skill
 
 ILA 的 SKILL.md 已随仓库分发（`skills/ila/SKILL.md`），安装后自动部署：

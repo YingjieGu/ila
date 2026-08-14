@@ -184,6 +184,11 @@ def cmd_run(args, config, orchestrator):
         report = result.get("report", {})
         md = report.get("markdown", "")
         print(md)
+        # 发布位置提示: 迭代产物默认发布为源平台的能力
+        publish = result.get("publish_info")
+        if publish:
+            print(f"\n  📦 已发布: {publish.get('note', '')}")
+            print(f"     🔗 在 {publish.get('platform')} 平台即可发现并使用该能力")
         if "saved_reports" in result:
             print("\n报告已保存:")
             for fmt, path in result["saved_reports"].items():

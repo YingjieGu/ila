@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -18,12 +19,15 @@ logger = logging.getLogger(__name__)
 class OpenClawAdapter(PlatformAdapter):
     """OpenClaw 平台适配器.
 
-    对接 OpenClaw 的能力纳管模型，支持:
-    - Skills: ~/.openclaw/skills/<name>/
+    对接 OpenClaw 的能力纳管模型，支持三类能力:
+    - Skills:  ~/.openclaw/skills/<name>/          → openclaw:skill:<name>
+    - Agents:  openclaw.json → agents.list         → openclaw:agent:<id>
+    - Channels: openclaw.json → channels           → openclaw:channel:<name>
     """
 
     def __init__(self, openclaw_home: str = "~/.openclaw"):
         self.openclaw_home = os.path.expanduser(openclaw_home)
+        self.config_path = os.path.join(self.openclaw_home, "openclaw.json")
 
     def platform_id(self) -> str:
         return "openclaw"
@@ -31,9 +35,27 @@ class OpenClawAdapter(PlatformAdapter):
     def get_platform_home(self) -> str:
         return self.openclaw_home
 
+    def _load_config(self) -> dict[str, Any]:
+        """加载 openclaw.json (不存在或损坏时返回空 dict)."""
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, encoding="utf-8") as f:
+                    return json.load(f) or {}
+        except (OSError, ValueError):
+            pass
+        return {}
+
     # ---- 对象发现 ----
 
     def discover_objects(self) -> list[ManagedObject]:
+        objects: list[ManagedObject] = []
+        objects.extend(self._discover_skills())
+        objects.extend(self._discover_agents())
+        objects.extend(self._discover_channels())
+        return sorted(objects, key=lambda o: o.object_id)
+
+    def _discover_skills(self) -> list[ManagedObject]:
+        """发现所有技能 (skills/ 下含 SKILL.md 的目录)."""
         objects = []
         skills_dir = os.path.join(self.openclaw_home, "skills")
         if os.path.isdir(skills_dir):
@@ -45,6 +67,47 @@ class OpenClawAdapter(PlatformAdapter):
                         platform="openclaw", object_type="skill",
                         name=name, path=path,
                     ))
+        return objects
+
+    def _discover_agents(self) -> list[ManagedObject]:
+        """发现所有 agent (openclaw.json → agents.list)."""
+        objects = []
+        cfg = self._load_config()
+        agents = cfg.get("agents", {})
+        agent_list = agents.get("list", []) if isinstance(agents, dict) else []
+        seen = set()
+        for entry in agent_list:
+            if not isinstance(entry, dict):
+                continue
+            aid = entry.get("id")
+            if not aid or aid in seen:
+                continue
+            seen.add(aid)
+            agent_dir = entry.get("agentDir") or os.path.join(
+                self.openclaw_home, "agents", aid, "agent"
+            )
+            objects.append(ManagedObject(
+                object_id=ManagedObject.make_id("openclaw", "agent", aid),
+                platform="openclaw", object_type="agent",
+                name=aid, path=os.path.expanduser(agent_dir),
+                metadata={"workspace": entry.get("workspace", ""),
+                          "config_source": self.config_path},
+            ))
+        return objects
+
+    def _discover_channels(self) -> list[ManagedObject]:
+        """发现所有 channel (openclaw.json → channels)."""
+        objects = []
+        cfg = self._load_config()
+        channels = cfg.get("channels", {})
+        if isinstance(channels, dict):
+            for name in sorted(channels.keys()):
+                objects.append(ManagedObject(
+                    object_id=ManagedObject.make_id("openclaw", "channel", name),
+                    platform="openclaw", object_type="channel",
+                    name=name, path=self.config_path,
+                    metadata={"config_source": self.config_path},
+                ))
         return objects
 
     def get_object(self, object_id: str) -> ManagedObject | None:
@@ -139,6 +202,17 @@ class OpenClawAdapter(PlatformAdapter):
     # ---- 热切换 ----
 
     def hot_swap(self, obj: ManagedObject, sandbox_path: str) -> dict[str, Any]:
+        """OpenClaw 热切换：快照 → 原子替换 → 健康检查 → 自动回滚.
+
+        - skill: 替换 ~/.openclaw/skills/<name>/ → 发布为 OpenClaw 技能
+        - agent: 替换 agentDir → 发布为 OpenClaw 专家
+        - channel: 配置文件对象, 拒绝整目录替换 (返回 rolled_back)
+        """
+        if obj.object_type == "channel":
+            return {
+                "status": "rolled_back",
+                "reason": "channel 为配置对象 (openclaw.json), 不支持目录级替换, 请直接编辑配置",
+            }
         snapshot = self.create_snapshot(obj)
         try:
             if os.path.exists(obj.path):
@@ -154,6 +228,13 @@ class OpenClawAdapter(PlatformAdapter):
             return {"status": "rolled_back", "reason": str(e), "snapshot": snapshot}
 
     def health_check(self, obj: ManagedObject) -> bool:
+        if obj.object_type == "channel":
+            # channel 对象: 检查 openclaw.json 存在且含该 channel 配置
+            try:
+                cfg = self._load_config()
+                return obj.name in cfg.get("channels", {})
+            except Exception:
+                return False
         return os.path.isdir(obj.path)
 
     def reload(self, obj: ManagedObject) -> bool:

@@ -31,6 +31,15 @@ ila trigger <object_id> "<requirement>"
 - 返回 `{"status": "started", "task_id": "ila-xxx"}`
 - 加 `-y` 可自动批准上线
 
+**📦 默认发布行为**：迭代上线后，产物**自动发布为源平台的能力**（对象 ID 前缀决定发布目标）：
+- `workbuddy:skill:xxx` → 发布为 WorkBuddy 技能（`~/.workbuddy/skills/xxx`）
+- `workbuddy:expert:xxx` → 发布为 WorkBuddy 专家（`plugins/marketplaces/my-experts/plugins/xxx`）
+- `openclaw:skill:xxx` → 发布为 OpenClaw 技能（`~/.openclaw/skills/xxx`）
+- `openclaw:agent:xxx` → 发布为 OpenClaw 专家（agentDir）
+- `hermes:skill:xxx` → 发布为 Hermes 技能（`~/.hermes/skills/xxx`）
+
+迭代完成后 CLI 会提示「📦 已发布: ... 位置: ...」，在对应平台即可发现并使用新能力。
+
 常见平台示例：
 
 ```bash
@@ -41,9 +50,21 @@ ila trigger hermes:skill:my-skill "需求"
 ila trigger workbuddy:skill:my-skill "需求"
 ila trigger workbuddy:expert:my-expert "需求"
 
-# OpenClaw 平台（技能）
+# OpenClaw 平台（技能+专家+channel）
 ila trigger openclaw:skill:my-skill "需求"
+ila trigger openclaw:agent:my-agent "需求"
 ```
+
+## 开发框架配置
+
+ILA 迭代调用 Codex 或 Claude Code 进行开发，首次使用需配置（失败时 CLI 会提示安装命令）：
+
+| 框架 | 安装 | 登录 | 配置方式 |
+|------|------|------|----------|
+| **codex**（默认） | `npm install -g @openai/codex` 或 `brew install codex` | `codex login` | `config/ila_config.yaml → sandbox.framework: codex` |
+| **claude_code** | `npm install -g @anthropic-ai/claude-code` | `claude`（OAuth）或设 `ANTHROPIC_API_KEY` | `sandbox.framework: claude_code` |
+
+模型配置：`sandbox.codex_model`（默认 `deepseek-v4-pro`）。
 
 ## 监控进度
 

@@ -280,6 +280,13 @@ class ILAOrchestrator:
                 "saved_reports": saved,
                 "source_dir": source_dir,
                 "sandbox_path": sandbox_path,
+                "publish_info": {
+                    "platform": obj.platform,
+                    "object_type": obj.object_type,
+                    "object_id": obj.object_id,
+                    "path": obj.path,
+                    "note": f"已发布为 {obj.platform} 平台的 {obj.object_type} 能力 ({obj.object_id}), 位置: {obj.path}",
+                },
             }
 
         self.registry.update_version_status(

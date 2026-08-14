@@ -150,6 +150,14 @@ class Developer:
 
         # 构建命令 (Windows 上 codex 可能是 .exe 或 .CMD)
         codex_cmd = shutil.which("codex") or "codex"
+        if not shutil.which("codex"):
+            return {
+                "status": "error",
+                "reason": "Codex CLI 未安装。请配置开发框架:\n"
+                          "  安装: npm install -g @openai/codex  或  brew install codex\n"
+                          "  或改配置: config/ila_config.yaml → sandbox.framework: claude_code / hermes_delegate\n"
+                          "  并确认: codex exec --version",
+            }
         cmd = [
             codex_cmd, "exec",
             "-m", self.codex_model,
@@ -212,7 +220,14 @@ class Developer:
         # 首次调用前轻量握手: 提前暴露环境问题, 避免开发重试 3 次才发现 CLI 不可用
         handshake_ok = self._claude_handshake()
         if not handshake_ok:
-            return {"status": "error", "reason": "Claude Code CLI 不可用 (握手失败, 请检查安装/登录)"}
+            return {
+                "status": "error",
+                "reason": "Claude Code CLI 不可用。请配置开发框架:\n"
+                          "  安装: npm install -g @anthropic-ai/claude-code\n"
+                          "  登录: claude  (首次运行 OAuth 登录, 或设置 ANTHROPIC_API_KEY)\n"
+                          "  或改配置: config/ila_config.yaml → sandbox.framework: codex / hermes_delegate\n"
+                          "  并确认: claude --version",
+            }
 
         claude_cmd = shutil.which("claude") or "claude"
         try:

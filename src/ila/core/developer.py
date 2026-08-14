@@ -217,16 +217,16 @@ class Developer:
         """
         prompt = self._build_prompt(task_spec)
 
-        # 首次调用前轻量握手: 提前暴露环境问题, 避免开发重试 3 次才发现 CLI 不可用
-        handshake_ok = self._claude_handshake()
+        # 首次调用前握手: 验证 CLI 可用性 + API/订阅连通性 (claude --print "ping"),
+        # 失败时降级重试一次, 避免开发重试 3 次才发现环境问题
+        handshake_ok, handshake_err = self._claude_handshake()
         if not handshake_ok:
             return {
                 "status": "error",
-                "reason": "Claude Code CLI 不可用。请配置开发框架:\n"
+                "reason": f"Claude Code CLI 不可用: {handshake_err}\n"
                           "  安装: npm install -g @anthropic-ai/claude-code\n"
                           "  登录: claude  (首次运行 OAuth 登录, 或设置 ANTHROPIC_API_KEY)\n"
-                          "  或改配置: config/ila_config.yaml → sandbox.framework: codex / hermes_delegate\n"
-                          "  并确认: claude --version",
+                          "  或改配置: config/ila_config.yaml → sandbox.framework: codex / hermes_delegate",
             }
 
         claude_cmd = shutil.which("claude") or "claude"
@@ -241,9 +241,12 @@ class Developer:
             )
             if result.returncode == 0:
                 return {"status": "success", "output": result.stdout[-2000:]}
+            # F1: claude 的错误 (API Error / 订阅错误) 通常输出在 stdout, stderr 为空,
+            # 因此拼接两个通道取末尾, 避免错误原因永远为空
+            combined = (result.stdout or "") + "\n" + (result.stderr or "")
             return {
                 "status": "error",
-                "reason": f"Claude Code 退出码 {result.returncode}: {result.stderr[:500]}",
+                "reason": f"Claude Code 退出码 {result.returncode}: {combined[-500:]}",
                 "output": result.stdout[-1000:],
             }
         except FileNotFoundError:
@@ -251,20 +254,36 @@ class Developer:
         except subprocess.TimeoutExpired:
             return {"status": "error", "reason": f"Claude Code 超时 ({self.timeout}s)"}
 
-    def _claude_handshake(self) -> bool:
-        """轻量检查 claude CLI 可用性 (claude --version, 3s 超时)."""
-        try:
-            claude_cmd = shutil.which("claude") or "claude"
-            result = subprocess.run(
-                [claude_cmd, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=3,
-                shell=(sys.platform == "win32"),
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            return False
+    def _claude_handshake(self) -> tuple[bool, str]:
+        """握手检查 claude CLI 可用性 + API/订阅连通性.
+
+        使用 ``claude --print "ping"`` (5s 超时) 同时覆盖 CLI 本地可用性
+        与后端 API 连通性; 失败时降级重试一次 (Windows + shell=True 的
+        cmd 包装开销可能导致偶发超时).
+
+        Returns:
+            (是否可用, 错误详情)
+        """
+        claude_cmd = shutil.which("claude") or "claude"
+        last_err = ""
+        for attempt in range(2):
+            try:
+                result = subprocess.run(
+                    [claude_cmd, "--print", "ping"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    shell=(sys.platform == "win32"),
+                )
+                if result.returncode == 0:
+                    return True, ""
+                combined = (result.stdout or "") + "\n" + (result.stderr or "")
+                last_err = combined.strip()[-300:] or f"退出码 {result.returncode}"
+            except FileNotFoundError:
+                return False, "CLI 未安装"
+            except subprocess.TimeoutExpired:
+                last_err = f"握手超时 (5s, 尝试 {attempt + 1}/2)"
+        return False, last_err
 
     def _build_prompt(self, task_spec: TaskSpec) -> str:
         """构建开发框架的提示词."""

@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -41,7 +42,8 @@ class Developer:
         self.sandbox_manager = sandbox_manager
         self.config = config or {}
         self.framework = self.config.get("framework", "codex")
-        self.codex_model = self.config.get("codex_model", "glm-5.2")
+        # 默认模型与 config/ila_config.yaml 保持一致 (deepseek-v4-pro)
+        self.codex_model = self.config.get("codex_model", "deepseek-v4-pro")
         self.codex_sandbox_mode = self.config.get("codex_sandbox_mode", "bypass")
         self.max_retries = self.config.get("max_retries", 3)
         self.timeout = self.config.get("timeout", 600)
@@ -146,9 +148,10 @@ class Developer:
         """通过 Codex CLI 执行开发."""
         prompt = self._build_prompt(task_spec)
 
-        # 构建命令
+        # 构建命令 (Windows 上 codex 可能是 .exe 或 .CMD)
+        codex_cmd = shutil.which("codex") or "codex"
         cmd = [
-            "codex", "exec",
+            codex_cmd, "exec",
             "-m", self.codex_model,
         ]
 
@@ -199,23 +202,54 @@ class Developer:
             return {"status": "error", "reason": f"调用 Codex 异常: {e}"}
 
     def _develop_with_claude_code(self, sandbox_path: str, task_spec: TaskSpec) -> dict[str, Any]:
-        """通过 Claude Code CLI 执行开发."""
+        """通过 Claude Code CLI 执行开发.
+
+        Windows 注意: npm 安装的 claude 是 claude.CMD, subprocess 不带
+        shell=True 时不会执行 .CMD 文件, 会误报 FileNotFoundError.
+        """
         prompt = self._build_prompt(task_spec)
+
+        # 首次调用前轻量握手: 提前暴露环境问题, 避免开发重试 3 次才发现 CLI 不可用
+        handshake_ok = self._claude_handshake()
+        if not handshake_ok:
+            return {"status": "error", "reason": "Claude Code CLI 不可用 (握手失败, 请检查安装/登录)"}
+
+        claude_cmd = shutil.which("claude") or "claude"
         try:
             result = subprocess.run(
-                ["claude", "--print", prompt],
+                [claude_cmd, "--print", prompt],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
                 cwd=sandbox_path,
+                shell=(sys.platform == "win32"),
             )
             if result.returncode == 0:
                 return {"status": "success", "output": result.stdout[-2000:]}
-            return {"status": "error", "reason": f"Claude Code 退出码 {result.returncode}"}
+            return {
+                "status": "error",
+                "reason": f"Claude Code 退出码 {result.returncode}: {result.stderr[:500]}",
+                "output": result.stdout[-1000:],
+            }
         except FileNotFoundError:
             return {"status": "error", "reason": "Claude Code CLI 未安装"}
         except subprocess.TimeoutExpired:
             return {"status": "error", "reason": f"Claude Code 超时 ({self.timeout}s)"}
+
+    def _claude_handshake(self) -> bool:
+        """轻量检查 claude CLI 可用性 (claude --version, 3s 超时)."""
+        try:
+            claude_cmd = shutil.which("claude") or "claude"
+            result = subprocess.run(
+                [claude_cmd, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                shell=(sys.platform == "win32"),
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            return False
 
     def _build_prompt(self, task_spec: TaskSpec) -> str:
         """构建开发框架的提示词."""

@@ -28,7 +28,8 @@ adapters:
     workbuddy_home: ~/.workbuddy
   ila:
     enabled: true
-    project_root: ~/myprojects/ila
+    # project_root 未配置时自动检测 (基于 __file__ 推导安装目录)
+    project_root: null
     dashboard_port: 9527
     staging_port: 9528
   custom:

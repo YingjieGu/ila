@@ -263,8 +263,29 @@ def cmd_version(args, config, orchestrator):
                 print(f"    {op:14s} {get_operation_label(op)} -> {get_operation_target_status(op)}")
         return
 
+    # D1: ila version --list — 列出所有版本记录
+    if getattr(args, "list_versions", False) or (args.version_id == "list"):
+        versions = registry.list_versions()
+        if not versions:
+            print("暂无版本记录")
+            return
+        print(f"\n共 {len(versions)} 条版本记录:\n")
+        print(f"{'ID':<6} {'对象':<32} {'版本':<10} {'状态':<12} {'时间'}")
+        print("-" * 80)
+        for v in versions:
+            ts = ""
+            import datetime
+            if v.get("created_at"):
+                try:
+                    ts = datetime.datetime.fromtimestamp(float(v["created_at"])).strftime("%Y-%m-%d %H:%M")
+                except (ValueError, TypeError):
+                    ts = str(v.get("created_at"))[:16]
+            print(f"{str(v.get('id','')):<6} {str(v.get('object_id','')):<32} "
+                  f"{str(v.get('version','')):<10} {str(v.get('status','')):<12} {ts}")
+        return
+
     if not args.version_id:
-        print("错误: 需要指定版本 ID，或使用 --operations 查看可用操作")
+        print("错误: 需要指定版本 ID，或使用 --operations 查看可用操作，或 --list 查看版本列表")
         sys.exit(1)
 
     if not args.operate:
@@ -319,6 +340,54 @@ def cmd_status(args, config, orchestrator):
     if platforms:
         print(f"\n  已注册平台: {', '.join(platforms)}")
 
+    # D4: --verbose 展示各对象当前版本/状态
+    if getattr(args, "verbose", False):
+        from ila.core.registry import VersionRegistry
+        ila_home = os.path.expanduser(config.get("ila", {}).get("home", "~/.ila"))
+        registry = VersionRegistry(ila_home=ila_home)
+        objects = orchestrator.discover()
+        if objects:
+            print(f"\n  对象明细 ({len(objects)} 个):")
+            print(f"  {'对象ID':<42} {'版本':<12} {'状态'}")
+            print("  " + "-" * 70)
+            for obj in objects:
+                oid = obj.get("object_id", "?")
+                latest = registry.get_latest_version(oid)
+                version = (latest or {}).get("version", obj.get("current_version", "?"))
+                status = (latest or {}).get("status", "-")
+                print(f"  {oid:<42} {str(version):<12} {status}")
+
+
+
+def cmd_report(args, config, orchestrator):
+    """查看迭代报告.
+
+    - 无参数: 展示最近一次版本迭代报告
+    - --version-list: 列出所有版本迭代报告
+    - --version-id <id>: 查看指定版本迭代报告详情
+    - --format json|markdown|text: 输出格式
+    """
+    from ila import get_version_report, list_version_reports
+
+    if getattr(args, "version_report", False):
+        _cmd_version_report(fmt=args.format)
+        return
+
+    if getattr(args, "version_id", None):
+        _cmd_version_report_detail(args.version_id, fmt=args.format)
+        return
+
+    # D2: 无参数 → 展示最近一次迭代报告
+    reports = list_version_reports()
+    if not reports:
+        print("暂无版本迭代报告。")
+        print("提示: 使用 `ila report --version-list` 查看列表")
+        return
+    latest_task_id = reports[0].get("task_id")
+    if latest_task_id:
+        _cmd_version_report_detail(latest_task_id, fmt=args.format)
+    else:
+        _cmd_version_report(fmt=args.format)
 
 
 def _cmd_version_report(fmt: str = "text") -> None:
@@ -426,9 +495,12 @@ def cmd_dashboard(args, config, orchestrator):
     try:
         from ila.dashboard.api import create_app
         import uvicorn
-    except ImportError:
-        print("Dashboard 依赖未安装。请运行:")
+    except ImportError as e:
+        missing = getattr(e, "name", "") or str(e)
+        print("Dashboard 依赖未安装或损坏。请运行:")
         print("  pip install fastapi uvicorn")
+        if missing:
+            print(f"  缺失模块: {missing}  (可尝试: pip install --force-reinstall --no-cache-dir {missing.split('.')[0]})")
         sys.exit(1)
 
     if getattr(args, "theme", None):
@@ -651,12 +723,14 @@ def main():
 
     # version (版本历史操作)
     p_version = subparsers.add_parser("version", help="版本历史操作")
-    p_version.add_argument("version_id", nargs="?", type=int, help="版本 ID")
+    p_version.add_argument("version_id", nargs="?", type=int, help="版本 ID (或使用 --list)")
     p_version.add_argument("--operate", "-o", help="执行操作 (rollback/deploy_verify/stop/iterate)")
     p_version.add_argument("--operations", action="store_true", help="列出按状态映射的可用操作")
+    p_version.add_argument("--list", action="store_true", dest="list_versions", help="列出所有版本记录")
 
     # status
-    subparsers.add_parser("status", help="查看 ILA 状态")
+    p_status = subparsers.add_parser("status", help="查看 ILA 状态")
+    p_status.add_argument("--verbose", "-v", action="store_true", help="展示各对象当前版本/状态明细")
 
     # dashboard
     p_dash = subparsers.add_parser("dashboard", help="启动可视化管控面板")
@@ -737,6 +811,7 @@ def main():
         "dashboard-url": cmd_dashboard_url,
         "staging-url": cmd_staging_url,
         "list": cmd_list,
+        "report": cmd_report,
     }
 
     handler = commands.get(args.command)

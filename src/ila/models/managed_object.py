@@ -44,6 +44,15 @@ class ManagedObject:
         if not self.object_type:
             self.object_type = parts[1]
 
+    @property
+    def type(self) -> str:
+        """对象类型别名 (等价于 object_type, 更直观)."""
+        return self.object_type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self.object_type = value
+
     @classmethod
     def make_id(cls, platform: str, object_type: str, name: str) -> str:
         """构造标准 object_id."""

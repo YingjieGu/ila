@@ -395,6 +395,15 @@ class VersionRegistry:
                 return d
             return None
 
+    def list_versions(self, limit: int = 200) -> list[dict[str, Any]]:
+        """列出所有版本记录 (按时间倒序)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM versions ORDER BY created_at DESC, id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def get_versions_by_object(self, object_id: str) -> list[dict[str, Any]]:
         """获取对象的所有版本记录."""
         with self._connect() as conn:
